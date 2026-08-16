@@ -1,7 +1,10 @@
 [build]
-buildCommand = "cd backend && cargo build --release"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "cd backend && ./target/release/backend"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
