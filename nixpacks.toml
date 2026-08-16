@@ -1,8 +1,0 @@
-[phases.setup]
-nixPkgs = ["rust", "cargo", "pkg-config", "openssl"]
-
-[phases.build]
-cmds = ["cd backend && cargo build --release"]
-
-[start]
-cmd = "cd backend && ./target/release/backend"
