@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Dashboard</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#4f46e5">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --indigo:      #4f46e5;
+  --indigo-dark: #3730a3;
+  --violet:      #7c3aed;
+  --surface:     #ffffff;
+  --bg:          #f1f5f9;
+  --text:        #1e293b;
+  --text2:       #475569;
+  --muted:       #94a3b8;
+  --border:      #e2e8f0;
+  --success-bg:  #ecfdf5;
+  --success-txt: #065f46;
+  --error-bg:    #fff1f2;
+  --error-txt:   #9f1239;
+  --info-bg:     #eff6ff;
+  --info-txt:    #1e40af;
+  --warn-bg:     #fffbeb;
+  --warn-txt:    #92400e;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg); min-height: 100vh; color: var(--text); }
+
+/* ── Toast ──────────────────────────────────────────────────── */
+#toastContainer { position: fixed; bottom: 24px; right: 16px; z-index: 9999; display: flex; flex-direction: column; gap: 10px; pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 12px; font-size: 0.88rem; font-weight: 500; box-shadow: 0 8px 28px rgba(0,0,0,0.14); pointer-events: all; animation: slideUp 0.3s ease; max-width: 300px; }
+.toast.success { background: var(--success-bg); color: var(--success-txt); border: 1px solid #a7f3d0; }
+.toast.error   { background: var(--error-bg);   color: var(--error-txt);   border: 1px solid #fda4af; }
+.toast.info    { background: var(--info-bg);    color: var(--info-txt);    border: 1px solid #bfdbfe; }
+.toast.warn    { background: var(--warn-bg);    color: var(--warn-txt);    border: 1px solid #fde68a; }
+.toast-icon  { font-size: 1rem; flex-shrink: 0; }
+.toast-close { margin-left: auto; background: none; border: none; cursor: pointer; color: inherit; opacity: 0.5; font-size: 0.9rem; }
+@keyframes slideUp   { from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)} }
+@keyframes slideDown { from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(14px)} }
+
+/* ── Navbar ─────────────────────────────────────────────────── */
+.navbar { background: linear-gradient(135deg, var(--indigo), var(--violet)); color: white; padding: 0 24px; height: 60px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 16px rgba(79,70,229,0.3); position: sticky; top: 0; z-index: 100; }
+.navbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1rem; }
+.navbar-user  { display: flex; align-items: center; gap: 12px; }
+.user-chip    { font-size: 0.82rem; font-weight: 500; background: rgba(255,255,255,0.18); border-radius: 20px; padding: 4px 12px; }
+.btn-logout   { background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 8px; padding: 6px 14px; cursor: pointer; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.82rem; transition: background 0.15s; }
+.btn-logout:hover { background: rgba(255,255,255,0.25); }
+
+/* ── Layout ─────────────────────────────────────────────────── */
+.container { max-width: 640px; margin: 24px auto; padding: 0 20px 40px; }
+
+/* ── Page tabs ──────────────────────────────────────────────── */
+.page-tabs { display: flex; background: var(--surface); border-radius: 14px; padding: 5px; gap: 5px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.06); }
+.page-tab { flex: 1; padding: 10px; border: none; border-radius: 10px; background: transparent; cursor: pointer; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.88rem; color: var(--muted); transition: all 0.15s; }
+.page-tab.active { background: var(--indigo); color: white; box-shadow: 0 2px 10px rgba(79,70,229,0.3); }
+
+/* ── Card ───────────────────────────────────────────────────── */
+.card { background: var(--surface); border-radius: 20px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+.card-body { padding: 20px 24px; }
+
+/* ── Semester selectors ─────────────────────────────────────── */
+.semester-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+.semester-row select { width: 100%; padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 9px; font-family: 'DM Sans', sans-serif; font-size: 0.88rem; color: var(--text); background: var(--surface); -webkit-appearance: none; transition: border-color 0.15s; }
+.semester-row select:focus { outline: none; border-color: var(--indigo); }
+
+/* ── Header row ─────────────────────────────────────────────── */
+.header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.header-row h2 { font-size: 1rem; font-weight: 700; }
+.btn-enroll { display: flex; align-items: center; gap: 6px; padding: 8px 16px; background: var(--indigo); color: white; border: none; border-radius: 9px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: opacity 0.15s, transform 0.1s; box-shadow: 0 2px 10px rgba(79,70,229,0.3); }
+.btn-enroll:hover { opacity: 0.88; transform: translateY(-1px); }
+
+/* ── Course cards ───────────────────────────────────────────── */
+.course-list { display: flex; flex-direction: column; gap: 10px; }
+
+.course-card {
+  border-radius: 14px; border: 1.5px solid var(--border);
+  background: var(--bg); overflow: hidden;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.course-card:hover { border-color: #c7d2fe; box-shadow: 0 2px 12px rgba(79,70,229,0.1); }
+
+.course-card-top {
+  display: flex; align-items: center;
+  justify-content: space-between; padding: 14px 16px;
+}
+.course-info-left { flex: 1; }
+.course-code { font-size: 0.75rem; font-weight: 700; color: var(--indigo); font-family: monospace; letter-spacing: 0.05em; }
+.course-name { font-size: 0.92rem; font-weight: 600; color: var(--text); margin-top: 2px; }
+.course-meta { font-size: 0.75rem; color: var(--muted); margin-top: 3px; }
+
+.course-actions { display: flex; gap: 8px; flex-shrink: 0; margin-left: 12px; }
+
+/* Scan button on course card */
+.btn-scan-course {
+  display: flex; align-items: center; gap: 5px;
+  padding: 7px 14px; background: var(--indigo); color: white;
+  border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+  font-weight: 600; font-size: 0.8rem; cursor: pointer;
+  transition: opacity 0.15s; white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(79,70,229,0.3);
+}
+.btn-scan-course:hover { opacity: 0.85; }
+
+.btn-drop-sm {
+  padding: 7px 10px; background: var(--error-bg); color: var(--error-txt);
+  border: 1px solid #fda4af; border-radius: 8px;
+  font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.78rem;
+  cursor: pointer; transition: opacity 0.15s;
+}
+.btn-drop-sm:hover { opacity: 0.8; }
+
+/* Empty state */
+.empty-state { text-align: center; padding: 36px 20px; color: var(--muted); }
+.empty-state .icon { font-size: 40px; margin-bottom: 10px; opacity: 0.4; }
+.empty-state p { font-size: 0.88rem; }
+.empty-state small { font-size: 0.8rem; margin-top: 4px; display: block; }
+
+/* ── Scanner section (shown when course selected) ───────────── */
+.scanner-section { display: none; }
+.scanner-section.active { display: block; }
+
+/* Course context bar — shows which course you're scanning for */
+.scan-context {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--info-bg);
+  border-bottom: 1px solid #bfdbfe;
+}
+.scan-context-info { flex: 1; }
+.scan-context-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--info-txt); }
+.scan-context-name  { font-size: 0.92rem; font-weight: 700; color: var(--indigo); margin-top: 2px; }
+.scan-context-meta  { font-size: 0.75rem; color: var(--info-txt); margin-top: 1px; opacity: 0.8; }
+.btn-change-course {
+  background: white; color: var(--indigo); border: 1.5px solid #bfdbfe;
+  border-radius: 8px; padding: 6px 12px; font-family: 'DM Sans', sans-serif;
+  font-weight: 600; font-size: 0.78rem; cursor: pointer; flex-shrink: 0; margin-left: 12px;
+}
+.btn-change-course:hover { background: var(--info-bg); }
+
+.scanner-header { padding: 16px 24px 0; }
+.scanner-header h3 { font-size: 0.95rem; font-weight: 700; color: var(--text); }
+.scanner-header p  { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+.video-wrap { position: relative; margin: 16px 0 0; background: #0f172a; min-height: 260px; display: flex; align-items: center; justify-content: center; }
+#video { width: 100%; max-height: 360px; object-fit: cover; display: block; }
+.camera-placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: #64748b; padding: 36px; text-align: center; }
+.camera-placeholder .icon { font-size: 44px; opacity: 0.5; }
+.camera-placeholder p { font-size: 0.85rem; }
+
+.scan-overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; pointer-events: none; }
+.scan-overlay.active { display: flex; }
+.scan-frame { width: 190px; height: 190px; position: relative; }
+.scan-frame::before, .scan-frame::after, .scan-frame span::before, .scan-frame span::after { content: ''; position: absolute; width: 26px; height: 26px; border-color: #fff; border-style: solid; opacity: 0.85; }
+.scan-frame::before      { top:0;    left:0;    border-width: 3px 0 0 3px; }
+.scan-frame::after       { top:0;    right:0;   border-width: 3px 3px 0 0; }
+.scan-frame span::before { bottom:0; left:0;    border-width: 0 0 3px 3px; }
+.scan-frame span::after  { bottom:0; right:0;   border-width: 0 3px 3px 0; }
+.scan-line { position: absolute; left:0; right:0; height:2px; background: linear-gradient(90deg,transparent,#4f46e5,#818cf8,#4f46e5,transparent); top:0; animation: scanline 2s linear infinite; opacity:0.85; }
+@keyframes scanline { 0%{top:0}100%{top:100%} }
+
+.status-wrap { padding: 0 20px; }
+.status-pill { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 10px; font-size: 0.84rem; font-weight: 500; margin-top: 14px; }
+.status-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.status-pill.info    { background: var(--info-bg);    color: var(--info-txt);    }
+.status-pill.success { background: var(--success-bg); color: var(--success-txt); }
+.status-pill.error   { background: var(--error-bg);   color: var(--error-txt);   }
+.status-pill.warn    { background: var(--warn-bg);    color: var(--warn-txt);    }
+.status-pill.info    .status-dot { background: #3b82f6; }
+.status-pill.success .status-dot { background: #10b981; animation: blink 1.5s infinite; }
+.status-pill.error   .status-dot { background: #f43f5e; }
+.status-pill.warn    .status-dot { background: #f59e0b; }
+
+.autoscan-row { padding: 10px 20px 0; display: flex; align-items: center; justify-content: space-between; font-size: 0.84rem; color: var(--muted); }
+.toggle-wrap { display: flex; align-items: center; gap: 8px; }
+.toggle { width: 36px; height: 20px; background: var(--border); border-radius: 10px; position: relative; cursor: pointer; transition: background 0.2s; border: none; }
+.toggle.on { background: var(--indigo); }
+.toggle::after { content: ''; position: absolute; width: 14px; height: 14px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+.toggle.on::after { transform: translateX(16px); }
+
+.controls { padding: 12px 20px 18px; display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { flex: 1; min-width: 90px; padding: 10px 8px; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.84rem; cursor: pointer; transition: opacity 0.15s, transform 0.12s; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.btn:hover  { opacity: 0.88; transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--indigo); color: white; box-shadow: 0 3px 12px rgba(79,70,229,0.3); }
+.btn-outline { background: white; color: var(--indigo); border: 1.5px solid var(--indigo); }
+.btn-ghost   { background: var(--bg); color: var(--text); border: 1.5px solid var(--border); }
+.btn-stop    { background: var(--error-bg); color: var(--error-txt); border: 1.5px solid #fda4af; }
+
+.result-card { margin: 0 20px 16px; padding: 14px; border-radius: 12px; display: none; animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275); }
+.result-card.success { background: var(--success-bg); border: 1px solid #a7f3d0; color: var(--success-txt); }
+.result-card.error   { background: var(--error-bg);   border: 1px solid #fda4af; color: var(--error-txt); }
+.result-card.show    { display: block; }
+.result-card h4 { font-size: 0.92rem; margin-bottom: 5px; }
+.result-card p  { font-size: 0.8rem; line-height: 1.5; opacity: 0.85; }
+
+/* ── Info section ───────────────────────────────────────────── */
+.info-section { margin-top: 20px; background: var(--surface); border-radius: 20px; padding: 20px 24px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); }
+.info-section h3 { font-size: 0.9rem; margin-bottom: 12px; }
+.info-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.85rem; }
+.info-row:last-child { border-bottom: none; }
+.info-label { color: var(--muted); }
+.info-value { font-weight: 600; }
+.cam-on  { color: #059669; }
+.cam-off { color: var(--muted); }
+
+/* ── Modal ──────────────────────────────────────────────────── */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 20px; }
+.modal-overlay.open { display: flex; }
+.modal { background: var(--surface); border-radius: 18px; padding: 24px; width: 100%; max-width: 500px; max-height: 82vh; display: flex; flex-direction: column; box-shadow: 0 24px 64px rgba(0,0,0,0.2); animation: popIn 0.25s cubic-bezier(0.175,0.885,0.32,1.275); }
+.modal-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-shrink: 0; }
+.modal-head h3 { font-size: 1rem; font-weight: 700; }
+.modal-close { background: var(--bg); border: none; border-radius: 8px; width: 32px; height: 32px; cursor: pointer; font-size: 1rem; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.modal-close:hover { color: var(--text); }
+.modal-note { font-size: 0.8rem; padding: 8px 12px; background: var(--info-bg); color: var(--info-txt); border-radius: 8px; margin-bottom: 14px; flex-shrink: 0; }
+.modal-body { overflow-y: auto; flex: 1; }
+
+.avail-course { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-radius: 10px; border: 1.5px solid var(--border); margin-bottom: 8px; background: var(--bg); transition: border-color 0.15s; }
+.avail-course:hover { border-color: #c7d2fe; }
+.avail-info { flex: 1; }
+.avail-code { font-size: 0.74rem; font-weight: 700; color: var(--indigo); font-family: monospace; }
+.avail-name { font-size: 0.9rem; font-weight: 600; color: var(--text); margin-top: 1px; }
+.avail-meta { font-size: 0.73rem; color: var(--muted); margin-top: 2px; }
+.btn-add { background: var(--success-bg); color: var(--success-txt); border: 1px solid #a7f3d0; border-radius: 8px; padding: 6px 12px; font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.78rem; cursor: pointer; transition: opacity 0.15s; flex-shrink: 0; margin-left: 10px; }
+.btn-add:hover { opacity: 0.8; }
+.btn-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.level-divider { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); padding: 10px 4px 6px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+
+.confirm-modal { max-height: unset; }
+.confirm-actions { display: flex; gap: 10px; margin-top: 16px; flex-shrink: 0; }
+.confirm-actions button { flex: 1; padding: 10px; border: none; border-radius: 9px; font-family: 'DM Sans', sans-serif; font-weight: 700; font-size: 0.88rem; cursor: pointer; }
+
+#canvas { display: none; }
+@keyframes blink { 0%,100%{opacity:1}50%{opacity:0.3} }
+@keyframes popIn { from{opacity:0;transform:scale(0.94)}to{opacity:1;transform:scale(1)} }
+</style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+
+<nav class="navbar">
+  <div class="navbar-brand">📱 Student Dashboard</div>
+  <div class="navbar-user">
+    <span class="user-chip" id="studentName">Loading…</span>
+    <button class="btn-logout" onclick="logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="container">
+
+  <!-- Page tabs -->
+  <div class="page-tabs">
+    <button class="page-tab active" onclick="showPage('courses')">📚 My Courses</button>
+    <button class="page-tab"        onclick="showPage('scan')">📷 Scan QR</button>
+  </div>
+
+  <!-- ── MY COURSES ────────────────────────────────────────────── -->
+  <div id="page-courses">
+    <div class="card">
+      <div class="card-body">
+
+        <div class="header-row">
+          <h2>📚 My Enrolled Courses</h2>
+          <button class="btn-enroll" onclick="openEnrollModal()">➕ Enroll</button>
+        </div>
+
+        <div class="semester-row">
+          <select id="semesterSelect" onchange="loadMyCourses()">
+            <option value="First Semester">First Semester</option>
+            <option value="Second Semester">Second Semester</option>
+          </select>
+          <select id="yearSelect" onchange="loadMyCourses()"></select>
+        </div>
+
+        <div id="myCourseList">
+          <div class="empty-state">
+            <div class="icon">📚</div>
+            <p>No courses enrolled yet.</p>
+            <small>Tap <strong>Enroll</strong> to register your courses.</small>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SCAN QR ───────────────────────────────────────────────── -->
+  <div id="page-scan" style="display:none">
+
+    <!-- Step 1: select course to scan for -->
+    <div id="selectCourseSection">
+      <div class="card">
+        <div class="card-body">
+          <div class="header-row" style="margin-bottom:8px">
+            <h2>📷 Select Course to Scan</h2>
+          </div>
+          <p style="font-size:0.83rem;color:var(--muted);margin-bottom:16px">
+            Choose the course you are currently attending before scanning the QR code.
+          </p>
+          <div class="semester-row">
+            <select id="scanSemesterSelect" onchange="loadScanCourses()">
+              <option value="First Semester">First Semester</option>
+              <option value="Second Semester">Second Semester</option>
+            </select>
+            <select id="scanYearSelect" onchange="loadScanCourses()"></select>
+          </div>
+          <div id="scanCourseList">
+            <div class="empty-state">
+              <div class="icon">📚</div>
+              <p>No enrolled courses found.</p>
+              <small>Go to <strong>My Courses</strong> tab to enroll first.</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 2: scanner (shown after course selected) -->
+    <div id="scannerSection" class="scanner-section">
+      <div class="card">
+
+        <!-- Course context bar -->
+        <div class="scan-context">
+          <div class="scan-context-info">
+            <div class="scan-context-label">Scanning attendance for</div>
+            <div class="scan-context-name" id="selectedCourseName">—</div>
+            <div class="scan-context-meta" id="selectedCourseMeta">—</div>
+          </div>
+          <button class="btn-change-course" onclick="changeCourse()">Change</button>
+        </div>
+
+        <div class="scanner-header">
+          <h3>📷 Point at the QR Code</h3>
+          <p>The lecturer must have generated a QR for this session</p>
+        </div>
+
+        <div class="video-wrap">
+          <div class="camera-placeholder" id="placeholder">
+            <div class="icon">📷</div>
+            <p>Tap <strong>Start Camera</strong> to begin scanning</p>
+          </div>
+          <video id="video" autoplay playsinline muted style="display:none"></video>
+          <canvas id="canvas"></canvas>
+          <div class="scan-overlay" id="scanOverlay">
+            <div class="scan-frame"><span></span><div class="scan-line"></div></div>
+          </div>
+        </div>
+
+        <div class="status-wrap">
+          <div class="status-pill info" id="statusPill">
+            <div class="status-dot"></div>
+            <span id="statusText">Camera not started</span>
+          </div>
+        </div>
+
+        <div class="autoscan-row" id="autoscanRow" style="display:none">
+          <span>Auto-scan (continuous)</span>
+          <div class="toggle-wrap">
+            <button class="toggle on" id="autoscanToggle" onclick="toggleAutoscan()"></button>
+            <span id="autoscanLabel" style="font-size:0.8rem;color:var(--indigo);font-weight:600">ON</span>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="btn btn-primary" id="startBtn"  onclick="startCamera()">📸 Start Camera</button>
+          <button class="btn btn-outline" id="switchBtn" onclick="switchCamera()" style="display:none">🔄 Switch</button>
+          <button class="btn btn-ghost"   id="scanBtn"   onclick="captureAndScan()" style="display:none">🔍 Scan Now</button>
+          <button class="btn btn-stop"    id="stopBtn"   onclick="stopCamera()" style="display:none">⏹ Stop</button>
+        </div>
+
+        <div class="result-card" id="resultCard">
+          <h4 id="resultTitle"></h4>
+          <p  id="resultBody"></p>
+        </div>
+
+      </div>
+
+      <div class="info-section">
+        <h3>ℹ️ Session Info</h3>
+        <div class="info-row"><span class="info-label">Student</span><span class="info-value" id="infoName">—</span></div>
+        <div class="info-row"><span class="info-label">Course</span><span class="info-value" id="infoCourse">—</span></div>
+        <div class="info-row"><span class="info-label">Camera</span><span class="info-value cam-off" id="infoCam">Off</span></div>
+        <div class="info-row"><span class="info-label">GPS</span><span class="info-value" id="infoGps">Checking…</span></div>
+        <div class="info-row"><span class="info-label">Last Scan</span><span class="info-value" id="infoLastScan">—</span></div>
+      </div>
+
+    </div><!-- /scannerSection -->
+
+  </div><!-- /page-scan -->
+
+</div><!-- /container -->
+
+<!-- ── Enroll Modal ──────────────────────────────────────────── -->
+<div class="modal-overlay" id="enrollModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>➕ Enroll in Courses</h3>
+      <button class="modal-close" onclick="closeEnrollModal()">✕</button>
+    </div>
+    <div class="modal-note">
+      Showing all courses for your department across all levels — including lower levels for carryover courses.
+    </div>
+    <div class="modal-body" id="availableCourseList">
+      <p style="text-align:center;color:var(--muted);padding:20px">Loading…</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Drop Confirm Modal ────────────────────────────────────── -->
+<div class="modal-overlay" id="dropModal">
+  <div class="modal confirm-modal" style="max-height:unset">
+    <div class="modal-head">
+      <h3>⚠️ Drop Course</h3>
+      <button class="modal-close" onclick="closeDropModal()">✕</button>
+    </div>
+    <p style="font-size:0.88rem;color:var(--text2);line-height:1.5" id="dropModalText"></p>
+    <p style="font-size:0.8rem;color:var(--muted);margin-top:8px">Your attendance records will be kept.</p>
+    <div class="confirm-actions">
+      <button onclick="confirmDrop()" style="background:#e53e3e;color:white">Drop Course</button>
+      <button onclick="closeDropModal()" style="background:var(--bg);color:var(--text);border:1.5px solid var(--border)">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
+<script>
+// ── Auth ───────────────────────────────────────────────────────
+const token    = localStorage.getItem('token');
+const userId   = parseInt(localStorage.getItem('userId'));
+const fullName = localStorage.getItem('fullName') || 'Student';
+if (!token) location.href = '/';
+
+document.getElementById('studentName').textContent = fullName;
+document.getElementById('infoName').textContent    = fullName;
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+// ── State ──────────────────────────────────────────────────────
+let currentStream    = null;
+let facingMode       = 'environment';
+let cameraActive     = false;
+let autoscanEnabled  = true;
+let autoscanTimer    = null;
+let submitting       = false;
+let cachedLocation   = null;
+let pendingDrop      = null;
+
+// Selected course for scanning
+let selectedCourseId   = null;
+let selectedCourseCode = null;
+let selectedCourseName = null;
+
+// ── Year selectors ─────────────────────────────────────────────
+(function populateYears() {
+  const year = new Date().getFullYear();
+  ['yearSelect','scanYearSelect'].forEach(id => {
+    const sel = document.getElementById(id);
+    for (let y = year; y >= year - 3; y--) {
+      const opt = document.createElement('option');
+      opt.value = `${y}/${y+1}`;
+      opt.textContent = `${y}/${y+1}`;
+      sel.appendChild(opt);
+    }
+  });
+})();
+
+// ── Toast ──────────────────────────────────────────────────────
+function toast(msg, type = 'info', duration = 3500) {
+  const icons = { success:'✅', error:'❌', info:'ℹ️', warn:'⚠️' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-icon">${icons[type]}</span><span>${msg}</span><button class="toast-close" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => { el.style.animation = 'slideDown 0.3s ease forwards'; setTimeout(() => el.remove(), 300); }, duration);
+}
+
+// ── GPS ────────────────────────────────────────────────────────
+function initGps() {
+  if (!navigator.geolocation) { document.getElementById('infoGps').textContent = 'Not supported'; return; }
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      cachedLocation = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+      document.getElementById('infoGps').textContent = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+    },
+    () => { document.getElementById('infoGps').textContent = 'Permission denied'; },
+    { enableHighAccuracy: true }
+  );
+}
+initGps();
+
+// ── Helpers ────────────────────────────────────────────────────
+function authHdr() { return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }; }
+function getSemester()     { return document.getElementById('semesterSelect').value; }
+function getAcademicYear() { return document.getElementById('yearSelect').value; }
+function getScanSemester() { return document.getElementById('scanSemesterSelect').value; }
+function getScanYear()     { return document.getElementById('scanYearSelect').value; }
+
+// ── Page tabs ──────────────────────────────────────────────────
+function showPage(page) {
+  document.getElementById('page-courses').style.display = page === 'courses' ? 'block' : 'none';
+  document.getElementById('page-scan').style.display    = page === 'scan'    ? 'block' : 'none';
+  document.querySelectorAll('.page-tab').forEach((btn, i) => {
+    btn.classList.toggle('active',
+      (page === 'courses' && i === 0) || (page === 'scan' && i === 1)
+    );
+  });
+  if (page === 'courses') loadMyCourses();
+  if (page === 'scan')    loadScanCourses();
+}
+
+// ── Load enrolled courses (My Courses tab) ─────────────────────
+async function loadMyCourses() {
+  const el = document.getElementById('myCourseList');
+  el.innerHTML = '<p style="text-align:center;color:var(--muted);padding:20px">Loading…</p>';
+  try {
+    const res     = await fetch(
+      `/api/enrollments/my/${userId}?semester=${encodeURIComponent(getSemester())}&academic_year=${encodeURIComponent(getAcademicYear())}`,
+      { headers: authHdr() }
+    );
+    const courses = await res.json();
+
+    if (!courses.length) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">📚</div><p>No courses enrolled for ${getSemester()} ${getAcademicYear()}.</p><small>Tap <strong>Enroll</strong> above to register your courses.</small></div>`;
+      return;
+    }
+
+    el.innerHTML = `<div class="course-list">${courses.map(c => `
+      <div class="course-card">
+        <div class="course-card-top">
+          <div class="course-info-left">
+            <div class="course-code">${c.code}</div>
+            <div class="course-name">${c.name}</div>
+            <div class="course-meta">${c.level} · ${c.department} · ${c.lecturer}</div>
+          </div>
+          <div class="course-actions">
+            <button class="btn-drop-sm"
+              onclick="openDropModal(${c.id}, '${c.code} — ${c.name.replace(/'/g,"\\'")}')">
+              Drop
+            </button>
+          </div>
+        </div>
+      </div>`).join('')}</div>`;
+  } catch { toast('Failed to load courses.', 'error'); }
+}
+
+// ── Load enrolled courses (Scan tab — for course selection) ────
+async function loadScanCourses() {
+  const el = document.getElementById('scanCourseList');
+  el.innerHTML = '<p style="text-align:center;color:var(--muted);padding:20px">Loading…</p>';
+
+  // Reset scanner if changing semester
+  changeCourse();
+
+  try {
+    const res     = await fetch(
+      `/api/enrollments/my/${userId}?semester=${encodeURIComponent(getScanSemester())}&academic_year=${encodeURIComponent(getScanYear())}`,
+      { headers: authHdr() }
+    );
+    const courses = await res.json();
+
+    if (!courses.length) {
+      el.innerHTML = `<div class="empty-state"><div class="icon">📚</div><p>No courses enrolled for this semester.</p><small>Go to <strong>My Courses</strong> tab to enroll first.</small></div>`;
+      return;
+    }
+
+    el.innerHTML = `<div class="course-list">${courses.map(c => `
+      <div class="course-card">
+        <div class="course-card-top">
+          <div class="course-info-left">
+            <div class="course-code">${c.code}</div>
+            <div class="course-name">${c.name}</div>
+            <div class="course-meta">${c.level} · ${c.lecturer}</div>
+          </div>
+          <div class="course-actions">
+            <button class="btn-scan-course"
+              onclick="selectCourseAndScan(${c.id}, '${c.code}', '${c.name.replace(/'/g,"\\'")}', '${c.lecturer.replace(/'/g,"\\'")}', '${c.level}')">
+              📷 Scan
+            </button>
+          </div>
+        </div>
+      </div>`).join('')}</div>`;
+  } catch { toast('Failed to load courses.', 'error'); }
+}
+
+// ── Select course and open scanner ────────────────────────────
+function selectCourseAndScan(courseId, code, name, lecturer, level) {
+  selectedCourseId   = courseId;
+  selectedCourseCode = code;
+  selectedCourseName = name;
+
+  // Update context bar
+  document.getElementById('selectedCourseName').textContent = `${code} — ${name}`;
+  document.getElementById('selectedCourseMeta').textContent = `${level} · ${lecturer}`;
+  document.getElementById('infoCourse').textContent         = `${code} — ${name}`;
+
+  // Show scanner, hide course list
+  document.getElementById('selectCourseSection').style.display = 'none';
+  document.getElementById('scannerSection').classList.add('active');
+}
+
+// ── Change course (go back to course list) ────────────────────
+function changeCourse() {
+  selectedCourseId   = null;
+  selectedCourseCode = null;
+  selectedCourseName = null;
+  stopCamera();
+  document.getElementById('selectCourseSection').style.display = 'block';
+  document.getElementById('scannerSection').classList.remove('active');
+  document.getElementById('infoCourse').textContent = '—';
+}
+
+// ── Enroll modal ───────────────────────────────────────────────
+async function openEnrollModal() {
+  document.getElementById('enrollModal').classList.add('open');
+  const listEl = document.getElementById('availableCourseList');
+  listEl.innerHTML = '<p style="text-align:center;color:var(--muted);padding:20px">Loading available courses…</p>';
+
+  try {
+    const res     = await fetch(
+      `/api/courses/available/${userId}?semester=${encodeURIComponent(getSemester())}&academic_year=${encodeURIComponent(getAcademicYear())}`,
+      { headers: authHdr() }
+    );
+    const courses = await res.json();
+
+    if (!courses.length) {
+      listEl.innerHTML = '<p style="text-align:center;color:var(--muted);padding:20px">No more courses available to enroll in for this semester.</p>';
+      return;
+    }
+
+    // Group by level
+    const grouped = {};
+    courses.forEach(c => {
+      if (!grouped[c.level]) grouped[c.level] = [];
+      grouped[c.level].push(c);
+    });
+
+    listEl.innerHTML = Object.keys(grouped).sort().map(level => `
+      <div class="level-divider">${level}</div>
+      ${grouped[level].map(c => `
+        <div class="avail-course">
+          <div class="avail-info">
+            <div class="avail-code">${c.code}</div>
+            <div class="avail-name">${c.name}</div>
+            <div class="avail-meta">${c.department} · ${c.lecturer}</div>
+          </div>
+          <button class="btn-add" id="addBtn-${c.id}"
+            onclick="enrollInCourse(${c.id}, '${c.name.replace(/'/g,"\\'")}', this)">
+            + Enroll
+          </button>
+        </div>`).join('')}
+    `).join('');
+
+  } catch { toast('Failed to load available courses.', 'error'); }
+}
+
+function closeEnrollModal() {
+  document.getElementById('enrollModal').classList.remove('open');
+  loadMyCourses();
+}
+
+async function enrollInCourse(courseId, courseName, btn) {
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const res  = await fetch('/api/enrollments/enroll', {
+      method: 'POST', headers: authHdr(),
+      body: JSON.stringify({ student_id: userId, course_id: courseId, semester: getSemester(), academic_year: getAcademicYear() })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      btn.textContent = '✓ Enrolled';
+      btn.style.cssText = 'background:var(--success-bg);color:var(--success-txt);border-color:#a7f3d0;border-radius:8px;padding:6px 12px;font-family:DM Sans,sans-serif;font-weight:600;font-size:0.78px;cursor:default;flex-shrink:0;margin-left:10px;border:1px solid #a7f3d0;font-size:0.78rem';
+      toast(`Enrolled in ${courseName}`, 'success');
+    } else {
+      btn.disabled = false; btn.textContent = '+ Enroll';
+      toast(data.error || 'Failed to enroll.', 'error');
+    }
+  } catch { btn.disabled = false; btn.textContent = '+ Enroll'; toast('Network error.', 'error'); }
+}
+
+// ── Drop modal ─────────────────────────────────────────────────
+function openDropModal(courseId, courseName) {
+  pendingDrop = courseId;
+  document.getElementById('dropModalText').textContent = `Drop "${courseName}" from your enrolled courses?`;
+  document.getElementById('dropModal').classList.add('open');
+}
+function closeDropModal() { document.getElementById('dropModal').classList.remove('open'); }
+
+async function confirmDrop() {
+  if (!pendingDrop) return;
+  try {
+    const res  = await fetch('/api/enrollments/drop', {
+      method: 'DELETE', headers: authHdr(),
+      body: JSON.stringify({ student_id: userId, course_id: pendingDrop, semester: getSemester(), academic_year: getAcademicYear() })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      closeDropModal(); pendingDrop = null;
+      toast('Course dropped. Your attendance records are kept.', 'info');
+      loadMyCourses();
+    } else { toast(data.error || 'Failed to drop course.', 'error'); }
+  } catch { toast('Network error.', 'error'); }
+}
+
+// ── Camera ─────────────────────────────────────────────────────
+async function startCamera() {
+  if (!selectedCourseId) { toast('Select a course first.', 'warn'); return; }
+  setStatus('info', 'Starting camera…');
+  try {
+    if (currentStream) stopStream();
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facingMode }, width: { ideal: 1280 }, height: { ideal: 720 } } }); }
+    catch { stream = await navigator.mediaDevices.getUserMedia({ video: true }); }
+    currentStream = stream;
+    const video = document.getElementById('video');
+    video.srcObject = stream; video.style.display = 'block';
+    document.getElementById('placeholder').style.display = 'none';
+    cameraActive = true;
+    document.getElementById('startBtn').style.display  = 'none';
+    document.getElementById('switchBtn').style.display = 'inline-flex';
+    document.getElementById('scanBtn').style.display   = 'inline-flex';
+    document.getElementById('stopBtn').style.display   = 'inline-flex';
+    document.getElementById('autoscanRow').style.display = 'flex';
+    document.getElementById('scanOverlay').classList.add('active');
+    const camEl = document.getElementById('infoCam');
+    camEl.textContent = 'On — Scanning'; camEl.className = 'info-value cam-on';
+    setStatus('info', `Scanning for ${selectedCourseCode} attendance…`);
+    video.onplaying = () => { if (autoscanEnabled) startAutoscan(); };
+  } catch {
+    setStatus('error', 'Camera access denied. Allow camera permission.');
+    toast('Camera access denied.', 'error');
+  }
+}
+
+function stopCamera() {
+  stopAutoscan(); stopStream();
+  cameraActive = false; submitting = false;
+  const video = document.getElementById('video');
+  if (video) { video.srcObject = null; video.style.display = 'none'; }
+  const ph = document.getElementById('placeholder');
+  if (ph) ph.style.display = 'flex';
+  const so = document.getElementById('scanOverlay');
+  if (so) so.classList.remove('active');
+  const startBtn  = document.getElementById('startBtn');
+  const switchBtn = document.getElementById('switchBtn');
+  const scanBtn   = document.getElementById('scanBtn');
+  const stopBtn   = document.getElementById('stopBtn');
+  const aRow      = document.getElementById('autoscanRow');
+  if (startBtn)  startBtn.style.display  = 'inline-flex';
+  if (switchBtn) switchBtn.style.display = 'none';
+  if (scanBtn)   scanBtn.style.display   = 'none';
+  if (stopBtn)   stopBtn.style.display   = 'none';
+  if (aRow)      aRow.style.display      = 'none';
+  const rc = document.getElementById('resultCard');
+  if (rc) rc.className = 'result-card';
+  autoscanEnabled = true;
+  const tog = document.getElementById('autoscanToggle');
+  const lbl = document.getElementById('autoscanLabel');
+  if (tog) tog.classList.add('on');
+  if (lbl) { lbl.textContent = 'ON'; lbl.style.color = 'var(--indigo)'; }
+  const camEl = document.getElementById('infoCam');
+  if (camEl) { camEl.textContent = 'Off'; camEl.className = 'info-value cam-off'; }
+  setStatus('info', 'Camera stopped');
+}
+
+function stopStream() { if (currentStream) { currentStream.getTracks().forEach(t => t.stop()); currentStream = null; } }
+
+async function switchCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  stopAutoscan(); await startCamera();
+}
+
+function startAutoscan() {
+  stopAutoscan();
+  autoscanTimer = setInterval(() => { if (cameraActive && !submitting) doScan(false); }, 600);
+}
+function stopAutoscan() { if (autoscanTimer) { clearInterval(autoscanTimer); autoscanTimer = null; } }
+
+function toggleAutoscan() {
+  autoscanEnabled = !autoscanEnabled;
+  const toggle = document.getElementById('autoscanToggle');
+  const label  = document.getElementById('autoscanLabel');
+  toggle.classList.toggle('on', autoscanEnabled);
+  label.textContent = autoscanEnabled ? 'ON' : 'OFF';
+  label.style.color = autoscanEnabled ? 'var(--indigo)' : 'var(--muted)';
+  if (autoscanEnabled) startAutoscan(); else stopAutoscan();
+}
+
+function captureAndScan() {
+  if (!cameraActive) { toast('Start the camera first.', 'warn'); return; }
+  doScan(true);
+}
+
+function doScan(manual) {
+  const video = document.getElementById('video');
+  if (!video.videoWidth || !video.videoHeight) return;
+  const canvas = document.getElementById('canvas');
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+  if (code) {
+    // Validate QR belongs to selected course
+    const parts = code.data.split(':');
+    if (parts.length === 3 && parts[0] === 'ATTENDANCE') {
+      const qrCourseId = parseInt(parts[1]);
+      if (qrCourseId !== selectedCourseId) {
+        setStatus('warn', `⚠ This QR is for a different course. Select the correct course.`);
+        toast('Wrong course QR code. Change your course selection.', 'warn');
+        return;
+      }
+    }
+    stopAutoscan();
+    submitAttendance(code.data);
+  } else if (manual) {
+    setStatus('warn', 'No QR code detected. Adjust camera angle.');
+  }
+}
+
+async function submitAttendance(qrData) {
+  if (submitting) return;
+  submitting = true;
+  setStatus('info', `Submitting attendance for ${selectedCourseCode}…`);
+
+  if (!cachedLocation && navigator.geolocation) {
+    cachedLocation = await new Promise(resolve => {
+      navigator.geolocation.getCurrentPosition(
+        pos => resolve({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        ()  => resolve(null), { timeout: 3000 }
+      );
+    });
+  }
+
+  try {
+    const res  = await fetch('/api/qr/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ qr_data: qrData, student_id: userId, latitude: cachedLocation?.latitude ?? null, longitude: cachedLocation?.longitude ?? null })
+    });
+    const data = await res.json();
+
+    if (res.ok && data.success) {
+      const time = new Date().toLocaleTimeString();
+      setStatus('success', `✅ Attendance marked for ${selectedCourseCode} at ${time}`);
+      showResult('success', '✅ Attendance Recorded',
+        `Course: ${selectedCourseCode} — ${selectedCourseName}\nTime: ${new Date().toLocaleString()}` +
+        (cachedLocation ? `\n📍 ${cachedLocation.latitude.toFixed(5)}, ${cachedLocation.longitude.toFixed(5)}` : '')
+      );
+      document.getElementById('infoLastScan').textContent = `${selectedCourseCode} @ ${time}`;
+      const camEl = document.getElementById('infoCam');
+      camEl.textContent = 'On — Done'; camEl.className = 'info-value cam-on';
+      toast(`Attendance marked for ${selectedCourseCode}!`, 'success', 5000);
+    } else {
+      const msg = data.message || data.error || 'Submission failed.';
+      setStatus('error', '❌ ' + msg);
+      showResult('error', '❌ Failed', msg);
+      toast(msg, 'error');
+      setTimeout(() => { submitting = false; if (autoscanEnabled && cameraActive) startAutoscan(); }, 3000);
+      return;
+    }
+  } catch {
+    setStatus('error', 'Network error. Check your connection.');
+    toast('Network error.', 'error');
+    setTimeout(() => { submitting = false; if (autoscanEnabled && cameraActive) startAutoscan(); }, 3000);
+    return;
+  }
+  submitting = false;
+}
+
+function setStatus(type, text) {
+  const pill = document.getElementById('statusPill');
+  const span = document.getElementById('statusText');
+  if (pill) pill.className   = 'status-pill ' + type;
+  if (span) span.textContent = text;
+}
+
+function showResult(type, title, body) {
+  const card = document.getElementById('resultCard');
+  if (!card) return;
+  card.className = 'result-card ' + type + ' show';
+  document.getElementById('resultTitle').textContent = title;
+  document.getElementById('resultBody').textContent  = body;
+  setTimeout(() => { card.className = 'result-card'; }, 8000);
+}
+
+// Close modals on backdrop click
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+
+function logout() { stopAutoscan(); stopStream(); localStorage.clear(); location.href = '/'; }
+
+// ── Init ───────────────────────────────────────────────────────
+loadMyCourses();
+</script>
+</body>
+</html>

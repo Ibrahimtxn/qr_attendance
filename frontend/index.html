@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attendance System</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#4f46e5">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<style>
+:root {
+  --indigo:      #4f46e5;
+  --indigo-dark: #3730a3;
+  --surface:     #ffffff;
+  --bg:          #f1f5f9;
+  --text:        #1e293b;
+  --muted:       #64748b;
+  --border:      #e2e8f0;
+  --success:     #059669;
+  --error:       #dc2626;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* Body scrolls freely — no flex centering that clips content */
+html, body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Fixed decorative blobs — don't affect layout */
+body::before, body::after {
+  content: '';
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.15;
+  pointer-events: none;
+  z-index: 0;
+}
+body::before {
+  width: 500px; height: 500px;
+  background: var(--indigo);
+  top: -150px; left: -150px;
+}
+body::after {
+  width: 400px; height: 400px;
+  background: #7c3aed;
+  bottom: -100px; right: -100px;
+}
+
+/* Page wrapper — column flex, scrollable, padded top + bottom */
+.page {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 60px;
+}
+
+.wrapper {
+  width: 100%;
+  max-width: 460px;
+}
+
+/* Brand */
+.brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.brand-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px; height: 60px;
+  background: var(--indigo);
+  border-radius: 16px;
+  font-size: 28px;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 24px rgba(79,70,229,0.35);
+}
+.brand h1 {
+  font-family: 'DM Serif Display', serif;
+  font-size: 1.7rem;
+  letter-spacing: -0.5px;
+  color: var(--text);
+}
+.brand p {
+  color: var(--muted);
+  font-size: 0.88rem;
+  margin-top: 4px;
+}
+
+/* Card */
+.card {
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+}
+
+/* Role pill selector */
+.role-selector {
+  display: flex;
+  background: var(--bg);
+  border-radius: 10px;
+  padding: 4px;
+  margin-bottom: 24px;
+  gap: 4px;
+}
+.role-btn {
+  flex: 1;
+  padding: 9px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 500;
+  font-size: 0.88rem;
+  color: var(--muted);
+  transition: all 0.18s;
+}
+.role-btn.active {
+  background: var(--surface);
+  color: var(--indigo);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+}
+
+/* Login / Register tabs */
+.view-tabs {
+  display: flex;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--border);
+}
+.view-tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--muted);
+  position: relative;
+  transition: color 0.18s;
+}
+.view-tab::after {
+  content: '';
+  position: absolute;
+  bottom: -2px; left: 0; right: 0;
+  height: 2px;
+  background: var(--indigo);
+  transform: scaleX(0);
+  transition: transform 0.2s;
+}
+.view-tab.active { color: var(--indigo); }
+.view-tab.active::after { transform: scaleX(1); }
+
+/* Form */
+.form-group { margin-bottom: 14px; }
+
+label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 6px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+input, select {
+  width: 100%;
+  padding: 11px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.93rem;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color 0.18s, box-shadow 0.18s;
+  -webkit-appearance: none;
+}
+input:focus, select:focus {
+  outline: none;
+  border-color: var(--indigo);
+  box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+}
+
+.submit-btn {
+  width: 100%;
+  padding: 13px;
+  background: var(--indigo);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background 0.18s, transform 0.12s, box-shadow 0.18s;
+  box-shadow: 0 4px 14px rgba(79,70,229,0.3);
+}
+.submit-btn:hover {
+  background: var(--indigo-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(79,70,229,0.38);
+}
+.submit-btn:active { transform: translateY(0); }
+
+/* Messages */
+.msg-error   { color: var(--error);   font-size: 0.85rem; margin-top: 10px; text-align: center; min-height: 20px; }
+.msg-success { color: var(--success); font-size: 0.85rem; margin-top: 10px; text-align: center; min-height: 20px; }
+
+/* Footer links */
+.footer-links {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.footer-links a {
+  color: var(--indigo);
+  text-decoration: none;
+  font-weight: 500;
+}
+.footer-links a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="wrapper">
+
+    <!-- Brand -->
+    <div class="brand">
+      <div class="brand-icon">📚</div>
+      <h1>Attendance System</h1>
+      <p>University QR Attendance Management</p>
+    </div>
+
+    <div class="card">
+
+      <!-- Login role selector -->
+      <div class="role-selector" id="loginRoles">
+        <button class="role-btn active" onclick="setLoginRole('student', this)">👨‍🎓 Student</button>
+        <button class="role-btn"        onclick="setLoginRole('lecturer', this)">👨‍🏫 Lecturer</button>
+      </div>
+
+      <!-- View tabs -->
+      <div class="view-tabs">
+        <button class="view-tab active" onclick="showView('login')">Login</button>
+        <button class="view-tab"        onclick="showView('register')">Register</button>
+      </div>
+
+      <!-- ── LOGIN ─────────────────────────────────────────── -->
+      <div id="loginView">
+        <div class="form-group">
+          <label>Email</label>
+          <input type="email" id="loginEmail" placeholder="you@university.edu">
+        </div>
+        <div class="form-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" placeholder="••••••••"
+            onkeydown="if(event.key==='Enter') login()">
+        </div>
+        <button class="submit-btn" onclick="login()">Sign In</button>
+        <div id="loginError" class="msg-error"></div>
+      </div>
+
+      <!-- ── REGISTER ───────────────────────────────────────── -->
+      <div id="registerView" style="display:none">
+
+        <!-- Register role selector -->
+        <div class="role-selector" id="registerRoles" style="margin-bottom:20px">
+          <button class="role-btn active" onclick="setRegisterRole('student', this)">👨‍🎓 Student</button>
+          <button class="role-btn"        onclick="setRegisterRole('lecturer', this)">👨‍🏫 Lecturer</button>
+        </div>
+
+        <!-- Student fields -->
+        <div id="studentFields">
+          <div class="form-group">
+            <label>Student ID</label>
+            <input type="text" id="regStudentId" placeholder="2024/CS/001">
+          </div>
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="regFullName" placeholder="John Doe">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="regEmail" placeholder="student@university.edu">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="regPassword" placeholder="Choose a password">
+          </div>
+          <div class="form-group">
+            <label>Level</label>
+            <select id="regLevel">
+              <option value="100 Level">100 Level</option>
+              <option value="200 Level">200 Level</option>
+              <option value="300 Level">300 Level</option>
+              <option value="400 Level">400 Level</option>
+              <option value="500 Level">500 Level</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Department</label>
+            <input type="text" id="regDepartment" placeholder="Computer Science">
+          </div>
+        </div>
+
+        <!-- Lecturer fields -->
+        <div id="lecturerFields" style="display:none">
+          <div class="form-group">
+            <label>Staff ID</label>
+            <input type="text" id="regStaffId" placeholder="LEC001">
+          </div>
+          <div class="form-group">
+            <label>Full Name</label>
+            <input type="text" id="regLecturerName" placeholder="Dr. John Smith">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="regLecturerEmail" placeholder="lecturer@university.edu">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="regLecturerPassword" placeholder="Choose a password">
+          </div>
+          <div class="form-group">
+            <label>Department</label>
+            <input type="text" id="regLecturerDept" placeholder="Computer Science">
+          </div>
+        </div>
+
+        <button class="submit-btn" onclick="register()">Create Account</button>
+        <div id="regError"   class="msg-error"></div>
+        <div id="regSuccess" class="msg-success"></div>
+      </div>
+
+      <!-- Footer -->
+      <div class="footer-links">
+        <a href="#" onclick="showForgot(); return false">Forgot password?</a>
+        <a href="/admin-login.html">Admin login →</a>
+      </div>
+
+    </div><!-- /card -->
+  </div><!-- /wrapper -->
+</div><!-- /page -->
+
+<script>
+let loginRole    = 'student';
+let registerRole = 'student';
+
+function setLoginRole(role, btn) {
+  loginRole = role;
+  document.querySelectorAll('#loginRoles .role-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function setRegisterRole(role, btn) {
+  registerRole = role;
+  document.querySelectorAll('#registerRoles .role-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('studentFields').style.display  = role === 'student'  ? 'block' : 'none';
+  document.getElementById('lecturerFields').style.display = role === 'lecturer' ? 'block' : 'none';
+}
+
+function showView(view) {
+  document.getElementById('loginView').style.display    = view === 'login'    ? 'block' : 'none';
+  document.getElementById('registerView').style.display = view === 'register' ? 'block' : 'none';
+  document.querySelectorAll('.view-tab').forEach((btn, i) => {
+    btn.classList.toggle('active',
+      (view === 'login' && i === 0) || (view === 'register' && i === 1)
+    );
+  });
+}
+
+async function login() {
+  const email    = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errEl    = document.getElementById('loginError');
+
+  if (!email || !password) {
+    errEl.textContent = 'Please fill in all fields.';
+    return;
+  }
+  errEl.textContent = '';
+
+  const res  = await fetch('/api/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password, role: loginRole })
+  });
+  const data = await res.json();
+
+  if (res.ok) {
+    localStorage.setItem('token',    data.token);
+    localStorage.setItem('userId',   data.user_id);
+    localStorage.setItem('role',     data.role);
+    localStorage.setItem('fullName', data.full_name);
+    if      (data.role === 'lecturer') location.href = '/lecturer.html';
+    else if (data.role === 'admin')    location.href = '/admin.html';
+    else                               location.href = '/student.html';
+  } else {
+    errEl.textContent = data.error || 'Invalid credentials.';
+  }
+}
+
+async function register() {
+  let body, url;
+
+  if (registerRole === 'student') {
+    url  = '/api/auth/register-student';
+    body = {
+      student_id: document.getElementById('regStudentId').value.trim(),
+      full_name:  document.getElementById('regFullName').value.trim(),
+      email:      document.getElementById('regEmail').value.trim(),
+      password:   document.getElementById('regPassword').value,
+      level:      document.getElementById('regLevel').value,
+      department: document.getElementById('regDepartment').value.trim(),
+    };
+  } else {
+    url  = '/api/auth/register-lecturer';
+    body = {
+      staff_id:   document.getElementById('regStaffId').value.trim(),
+      full_name:  document.getElementById('regLecturerName').value.trim(),
+      email:      document.getElementById('regLecturerEmail').value.trim(),
+      password:   document.getElementById('regLecturerPassword').value,
+      department: document.getElementById('regLecturerDept').value.trim(),
+    };
+  }
+
+  const res  = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+
+  if (res.ok) {
+    document.getElementById('regSuccess').textContent = '✅ Account created! Redirecting to login…';
+    document.getElementById('regError').textContent   = '';
+    setTimeout(() => showView('login'), 2000);
+  } else {
+    document.getElementById('regError').textContent   = data.error || 'Registration failed.';
+    document.getElementById('regSuccess').textContent = '';
+  }
+}
+
+async function showForgot() {
+  const email = prompt('Enter your registered email:');
+  if (!email) return;
+  const new_password = prompt(
+    `Reset password for ${loginRole} "${email}"\n\nEnter new password:`
+  );
+  if (!new_password) return;
+
+  const res  = await fetch('/api/auth/forgot-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, new_password, role: loginRole })
+  });
+  const data = await res.json();
+  alert(res.ok ? '✅ ' + data.message : '❌ ' + data.error);
+}
+
+// Register PWA service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>

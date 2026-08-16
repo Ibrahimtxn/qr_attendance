@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Login — Attendance System</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f1117; --surface: #1a1d27; --surface2: #222533;
+  --border: #2e3245; --accent: #f59e0b;
+  --accent-dim: rgba(245,158,11,0.15);
+  --text: #e2e8f0; --muted: #64748b;
+  --error: #f87171;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Grid background */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(245,158,11,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(245,158,11,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* Glow */
+body::after {
+  content: '';
+  position: fixed;
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(245,158,11,0.06) 0%, transparent 70%);
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.wrapper {
+  position: relative; z-index: 1;
+  width: 100%; max-width: 420px; padding: 20px;
+}
+
+.badge {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 32px;
+}
+.badge-icon {
+  width: 42px; height: 42px;
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.badge-text {
+  font-family: var(--mono);
+  font-size: 0.72rem; color: var(--muted);
+  letter-spacing: 0.12em; text-transform: uppercase; line-height: 1.6;
+}
+.badge-text strong {
+  display: block; color: var(--text);
+  font-size: 0.85rem; letter-spacing: 0.04em;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px; padding: 32px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+
+.status-bar {
+  display: flex; align-items: center; gap: 8px;
+  background: var(--accent-dim);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 8px; padding: 9px 14px;
+  margin-bottom: 28px;
+}
+.status-dot {
+  width: 7px; height: 7px;
+  background: var(--accent); border-radius: 50%;
+  animation: pulse 2s infinite;
+}
+.status-bar span {
+  font-family: var(--mono);
+  font-size: 0.75rem; color: var(--accent);
+  letter-spacing: 0.06em;
+}
+
+.form-group { margin-bottom: 18px; }
+
+label {
+  display: block; font-family: var(--mono);
+  font-size: 0.72rem; color: var(--muted);
+  letter-spacing: 0.1em; text-transform: uppercase;
+  margin-bottom: 7px;
+}
+
+input {
+  width: 100%; padding: 12px 14px;
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--mono); font-size: 0.9rem;
+  color: var(--text);
+  transition: border-color 0.18s, box-shadow 0.18s;
+  -webkit-appearance: none;
+}
+input::placeholder { color: var(--muted); opacity: 0.6; }
+input:focus {
+  outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(245,158,11,0.12);
+}
+
+.submit-btn {
+  width: 100%; padding: 13px;
+  background: var(--accent); color: #0f1117;
+  border: none; border-radius: 8px;
+  font-family: var(--mono); font-weight: 600;
+  font-size: 0.88rem; letter-spacing: 0.08em;
+  text-transform: uppercase; cursor: pointer;
+  margin-top: 4px;
+  transition: opacity 0.15s, transform 0.12s;
+  box-shadow: 0 4px 20px rgba(245,158,11,0.25);
+}
+.submit-btn:hover  { opacity: 0.88; transform: translateY(-1px); }
+.submit-btn:active { transform: translateY(0); }
+.submit-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.msg-error {
+  color: var(--error); font-family: var(--mono);
+  font-size: 0.78rem; margin-top: 12px;
+  text-align: center; letter-spacing: 0.04em;
+  min-height: 20px;
+}
+
+.divider {
+  display: flex; align-items: center; gap: 12px; margin: 20px 0;
+}
+.divider::before, .divider::after {
+  content: ''; flex: 1; height: 1px; background: var(--border);
+}
+.divider span {
+  font-family: var(--mono); font-size: 0.68rem;
+  color: var(--muted); letter-spacing: 0.1em;
+  text-transform: uppercase; white-space: nowrap;
+}
+
+.footer {
+  text-align: center; font-size: 0.8rem; color: var(--muted);
+}
+.footer a {
+  color: var(--accent); text-decoration: none;
+  font-family: var(--mono); font-size: 0.75rem;
+}
+.footer a:hover { text-decoration: underline; }
+
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <div class="badge">
+    <div class="badge-icon">🔐</div>
+    <div class="badge-text">
+      <strong>Admin Portal</strong>
+      Attendance Management System
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="status-bar">
+      <div class="status-dot"></div>
+      <span>RESTRICTED ACCESS — AUTHORISED PERSONNEL ONLY</span>
+    </div>
+
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="adminUsername" placeholder="admin" autocomplete="username">
+    </div>
+
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="adminPassword" placeholder="••••••••"
+        autocomplete="current-password"
+        onkeydown="if(event.key==='Enter') adminLogin()">
+    </div>
+
+    <button class="submit-btn" id="loginBtn" onclick="adminLogin()">
+      Authenticate →
+    </button>
+    <div id="loginError" class="msg-error"></div>
+
+    <div class="divider"><span>or</span></div>
+
+    <div class="footer">
+      Not an admin? <a href="/">Return to main login</a>
+    </div>
+  </div>
+
+</div>
+
+<script>
+async function adminLogin() {
+  const username = document.getElementById('adminUsername').value.trim();
+  const password = document.getElementById('adminPassword').value;
+  const errEl    = document.getElementById('loginError');
+  const btn      = document.getElementById('loginBtn');
+
+  if (!username || !password) {
+    errEl.textContent = '⚠ Enter both username and password.';
+    return;
+  }
+
+  errEl.textContent  = '';
+  btn.textContent    = 'Verifying…';
+  btn.disabled       = true;
+
+  try {
+    const res  = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: username, password, role: 'admin' })
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+      localStorage.setItem('token',    data.token);
+      localStorage.setItem('userId',   data.user_id);
+      localStorage.setItem('role',     data.role);
+      localStorage.setItem('fullName', data.full_name);
+      location.href = '/admin.html';
+    } else {
+      errEl.textContent = '⚠ ' + (data.error || 'Invalid credentials.');
+      btn.textContent   = 'Authenticate →';
+      btn.disabled      = false;
+    }
+  } catch {
+    errEl.textContent = '⚠ Network error. Try again.';
+    btn.textContent   = 'Authenticate →';
+    btn.disabled      = false;
+  }
+}
+</script>
+</body>
+</html>

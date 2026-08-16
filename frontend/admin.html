@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Dashboard — Attendance System</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#f59e0b">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#222533;--surface3:#2a2e40;
+  --border:#2e3245;--border2:#3a3f58;
+  --accent:#f59e0b;--accent-dim:rgba(245,158,11,0.12);--accent-bdr:rgba(245,158,11,0.28);
+  --red:#f87171;--red-dim:rgba(248,113,113,0.12);
+  --green:#34d399;--green-dim:rgba(52,211,153,0.12);
+  --orange:#fb923c;--orange-dim:rgba(251,146,60,0.12);
+  --text:#e2e8f0;--text2:#94a3b8;--text3:#64748b;
+  --mono:'IBM Plex Mono',monospace;--sans:'IBM Plex Sans',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(245,158,11,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(245,158,11,0.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+/* Toast */
+#toastContainer{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none;}
+.toast{display:flex;align-items:center;gap:10px;padding:12px 16px;border-radius:10px;font-family:var(--mono);font-size:0.78rem;box-shadow:0 8px 28px rgba(0,0,0,0.4);pointer-events:all;animation:slideUp 0.3s ease;max-width:320px;letter-spacing:0.02em;}
+.toast.success{background:var(--green-dim);color:var(--green);border:1px solid rgba(52,211,153,0.3);}
+.toast.error{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.3);}
+.toast.info{background:var(--accent-dim);color:var(--accent);border:1px solid var(--accent-bdr);}
+.toast.warn{background:var(--orange-dim);color:var(--orange);border:1px solid rgba(251,146,60,0.3);}
+.toast-icon{font-size:1rem;flex-shrink:0;}
+.toast-close{margin-left:auto;background:none;border:none;cursor:pointer;color:inherit;opacity:0.5;font-size:0.9rem;}
+@keyframes slideUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideDown{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(14px)}}
+
+/* Navbar */
+.navbar{position:sticky;top:0;z-index:200;background:rgba(15,17,23,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:0 28px;height:56px;display:flex;align-items:center;justify-content:space-between;}
+.navbar-left{display:flex;align-items:center;gap:14px;}
+.nav-badge{display:flex;align-items:center;gap:8px;background:var(--accent-dim);border:1px solid var(--accent-bdr);border-radius:6px;padding:5px 11px;}
+.nav-dot{width:6px;height:6px;background:var(--accent);border-radius:50%;animation:pulse 2s infinite;}
+.nav-badge span{font-family:var(--mono);font-size:0.7rem;color:var(--accent);letter-spacing:0.1em;text-transform:uppercase;}
+.nav-title{font-family:var(--mono);font-size:0.85rem;color:var(--text2);letter-spacing:0.04em;}
+.nav-title strong{color:var(--text);}
+.navbar-right{display:flex;align-items:center;gap:12px;}
+.user-pill{font-family:var(--mono);font-size:0.75rem;color:var(--text2);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;}
+.btn-logout{font-family:var(--mono);font-size:0.72rem;letter-spacing:0.08em;text-transform:uppercase;background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.25);border-radius:6px;padding:6px 14px;cursor:pointer;transition:background 0.15s;}
+.btn-logout:hover{background:rgba(248,113,113,0.22);}
+
+/* Layout */
+.layout{position:relative;z-index:1;display:grid;grid-template-columns:240px 1fr 360px;min-height:calc(100vh - 56px);}
+
+/* Sidebar */
+.sidebar{border-right:1px solid var(--border);padding:24px 16px;display:flex;flex-direction:column;gap:4px;}
+.sidebar-label{font-family:var(--mono);font-size:0.65rem;letter-spacing:0.14em;text-transform:uppercase;color:var(--text3);padding:10px 12px 6px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:10px;cursor:pointer;font-size:0.88rem;font-weight:500;color:var(--text2);border:1px solid transparent;transition:all 0.15s;background:none;width:100%;text-align:left;}
+.nav-item:hover{background:var(--surface2);color:var(--text);border-color:var(--border);}
+.nav-item.active{background:var(--accent-dim);color:var(--accent);border-color:var(--accent-bdr);}
+.nav-item .icon{font-size:1rem;width:20px;text-align:center;}
+.nav-item .count{margin-left:auto;font-family:var(--mono);font-size:0.7rem;background:var(--surface3);border:1px solid var(--border);border-radius:4px;padding:1px 6px;color:var(--text3);}
+.nav-item.active .count{background:var(--accent-dim);border-color:var(--accent-bdr);color:var(--accent);}
+.sidebar-divider{height:1px;background:var(--border);margin:10px 0;}
+
+/* Main */
+.main{padding:28px;overflow:auto;}
+.panel{display:none;}
+.panel.active{display:block;}
+.panel-title{font-family:var(--mono);font-size:0.78rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text3);margin-bottom:6px;}
+.panel-title strong{display:block;font-family:var(--sans);font-size:1.25rem;font-weight:700;color:var(--text);letter-spacing:0;text-transform:none;margin-top:2px;}
+.panel-desc{font-size:0.84rem;color:var(--text2);margin-bottom:20px;line-height:1.6;}
+
+/* Toolbar */
+.toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:flex-end;}
+.toolbar > div{flex:1;min-width:140px;}
+.toolbar label{font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:5px;display:block;}
+.toolbar select,.toolbar input{width:100%;padding:9px 12px;background:var(--surface2);border:1.5px solid var(--border);border-radius:7px;font-family:var(--sans);font-size:0.88rem;color:var(--text);-webkit-appearance:none;}
+.toolbar select:focus,.toolbar input:focus{outline:none;border-color:var(--accent);}
+.btn-load{padding:9px 18px;background:var(--accent);color:#0f1117;border:none;border-radius:7px;font-family:var(--mono);font-weight:600;font-size:0.75rem;letter-spacing:0.06em;text-transform:uppercase;cursor:pointer;white-space:nowrap;transition:opacity 0.15s;align-self:flex-end;}
+.btn-load:hover{opacity:0.85;}
+
+/* Setup grid */
+.setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.setup-col-head{font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.setup-item{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);margin-bottom:8px;}
+.setup-item-info{flex:1;}
+.setup-code{font-family:var(--mono);font-size:0.75rem;color:var(--accent);}
+.setup-name{font-size:0.85rem;font-weight:600;color:var(--text);margin-top:2px;}
+.setup-meta{font-size:0.72rem;color:var(--text3);margin-top:2px;}
+.btn-assign{font-family:var(--mono);font-size:0.68rem;letter-spacing:0.06em;text-transform:uppercase;border:none;border-radius:5px;padding:5px 10px;cursor:pointer;transition:opacity 0.15s;white-space:nowrap;margin-left:10px;flex-shrink:0;}
+.btn-assign:hover{opacity:0.78;}
+.btn-assign.add{background:var(--green-dim);color:var(--green);border:1px solid rgba(52,211,153,0.25);}
+.btn-assign.remove{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.22);}
+
+/* Table */
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+thead tr{background:var(--surface2);}
+th{font-family:var(--mono);font-size:0.68rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);padding:11px 16px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap;}
+td{padding:11px 16px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:var(--surface2);color:var(--text);}
+.td-primary{color:var(--text) !important;font-weight:600;}
+.td-mono{font-family:var(--mono);font-size:0.8rem;}
+.td-sub{font-size:0.75rem;color:var(--text3) !important;margin-top:2px;}
+.action-row{display:flex;gap:6px;}
+.tbl-btn{font-family:var(--mono);font-size:0.68rem;letter-spacing:0.06em;text-transform:uppercase;border:none;border-radius:5px;padding:5px 10px;cursor:pointer;transition:opacity 0.15s;white-space:nowrap;}
+.tbl-btn:hover{opacity:0.78;}
+.tbl-btn.danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,0.22);}
+.tbl-btn.warning{background:var(--orange-dim);color:var(--orange);border:1px solid rgba(251,146,60,0.22);}
+.empty-state{text-align:center;padding:48px 20px;color:var(--text3);font-size:0.88rem;}
+.empty-state .empty-icon{font-size:36px;margin-bottom:10px;opacity:0.4;}
+
+/* Right panel */
+.right-panel{border-left:1px solid var(--border);padding:24px 20px;overflow-y:auto;}
+.form-section{margin-bottom:28px;}
+.section-head{display:flex;align-items:center;gap:8px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+.section-head h3{font-size:0.88rem;font-weight:600;color:var(--text);}
+.section-icon{width:28px;height:28px;border-radius:6px;background:var(--accent-dim);border:1px solid var(--accent-bdr);display:flex;align-items:center;justify-content:center;font-size:0.85rem;}
+.form-group{margin-bottom:10px;}
+label{display:block;font-family:var(--mono);font-size:0.65rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text3);margin-bottom:5px;}
+input,select{width:100%;padding:9px 12px;background:var(--surface2);border:1.5px solid var(--border);border-radius:7px;font-family:var(--sans);font-size:0.88rem;color:var(--text);transition:border-color 0.15s,box-shadow 0.15s;-webkit-appearance:none;}
+input::placeholder{color:var(--text3);}
+input:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(245,158,11,0.1);}
+select option{background:var(--surface2);}
+.btn-submit{width:100%;padding:10px;background:var(--accent);color:#0f1117;border:none;border-radius:7px;font-family:var(--mono);font-weight:600;font-size:0.78rem;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;margin-top:4px;transition:opacity 0.15s,transform 0.12s;box-shadow:0 3px 14px rgba(245,158,11,0.22);}
+.btn-submit:hover{opacity:0.88;transform:translateY(-1px);}
+.btn-submit:active{transform:translateY(0);}
+.btn-submit.green{background:var(--green);box-shadow:0 3px 14px rgba(52,211,153,0.2);}
+
+/* Modals */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);z-index:1000;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:28px;width:420px;max-width:95vw;box-shadow:0 24px 64px rgba(0,0,0,0.6);animation:modalIn 0.2s cubic-bezier(0.175,0.885,0.32,1.275) both;}
+.modal-header{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+.modal-header h3{font-size:1rem;font-weight:700;color:var(--text);}
+.modal-sub{font-size:0.85rem;color:var(--text2);margin-bottom:6px;line-height:1.5;}
+.modal-warn{font-family:var(--mono);font-size:0.72rem;color:var(--red);margin-top:6px;letter-spacing:0.03em;}
+.modal-actions{display:flex;gap:10px;margin-top:20px;}
+.modal-actions button{flex:1;padding:10px;border-radius:7px;border:none;cursor:pointer;font-family:var(--mono);font-size:0.75rem;font-weight:600;letter-spacing:0.07em;text-transform:uppercase;transition:opacity 0.15s;}
+.modal-actions button:hover{opacity:0.82;}
+.modal-actions .ma-confirm{background:var(--red);color:#0f1117;}
+.modal-actions .ma-cancel{background:var(--surface3);color:var(--text2);border:1px solid var(--border2);}
+.modal-actions .ma-primary{background:var(--accent);color:#0f1117;}
+.modal-msg{font-family:var(--mono);font-size:0.72rem;color:var(--red);margin-top:8px;min-height:18px;}
+
+@keyframes modalIn{from{opacity:0;transform:scale(0.93)}to{opacity:1;transform:scale(1)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.25}}
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div id="toastContainer"></div>
+
+<nav class="navbar">
+  <div class="navbar-left">
+    <div class="nav-badge"><div class="nav-dot"></div><span>Admin</span></div>
+    <span class="nav-title"><strong>Attendance</strong> Management System</span>
+  </div>
+  <div class="navbar-right">
+    <span class="user-pill" id="adminName">Loading…</span>
+    <button class="btn-logout" onclick="logout()">⏻ Logout</button>
+  </div>
+</nav>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-label">Records</div>
+    <button class="nav-item active" onclick="showPanel('students',this)"><span class="icon">👥</span>Students<span class="count" id="countStudents">—</span></button>
+    <button class="nav-item" onclick="showPanel('lecturers',this)"><span class="icon">👨‍🏫</span>Lecturers<span class="count" id="countLecturers">—</span></button>
+    <button class="nav-item" onclick="showPanel('courses',this)"><span class="icon">📚</span>Courses<span class="count" id="countCourses">—</span></button>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-label">Setup</div>
+    <button class="nav-item" onclick="showPanel('departments',this)"><span class="icon">🏛</span>Departments<span class="count" id="countDepts">—</span></button>
+    <button class="nav-item" onclick="showPanel('semester',this)"><span class="icon">🗓</span>Semester Setup</button>
+    <button class="nav-item" onclick="showPanel('enrollments',this)"><span class="icon">📋</span>Enrollments</button>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+
+    <!-- Students -->
+    <div class="panel active" id="panel-students">
+      <div class="panel-title">Records / <strong>Students</strong></div>
+      <div id="studentList"><div class="empty-state"><div class="empty-icon">👥</div>Loading…</div></div>
+    </div>
+
+    <!-- Lecturers -->
+    <div class="panel" id="panel-lecturers">
+      <div class="panel-title">Records / <strong>Lecturers</strong></div>
+      <div id="lecturerList"><div class="empty-state"><div class="empty-icon">👨‍🏫</div>Loading…</div></div>
+    </div>
+
+    <!-- Courses -->
+    <div class="panel" id="panel-courses">
+      <div class="panel-title">Records / <strong>Courses</strong></div>
+      <div id="courseList"><div class="empty-state"><div class="empty-icon">📚</div>Loading…</div></div>
+    </div>
+
+    <!-- Departments -->
+    <div class="panel" id="panel-departments">
+      <div class="panel-title">Setup / <strong>Departments</strong></div>
+      <p class="panel-desc">All registered departments. These populate the department dropdowns across the system. Add any department that doesn't exist here.</p>
+      <div id="deptList"><div class="empty-state"><div class="empty-icon">🏛</div>Loading…</div></div>
+    </div>
+
+    <!-- Semester Setup -->
+    <div class="panel" id="panel-semester">
+      <div class="panel-title">Setup / <strong>Semester Course Assignment</strong></div>
+      <p class="panel-desc">
+        Choose a semester, year and department to manage which courses students of that department can see and enroll in.
+        A single course can be assigned to multiple departments for merged classes.
+        Students will only see courses you have assigned to their department here.
+      </p>
+
+      <div class="toolbar">
+        <div>
+          <label>Semester</label>
+          <select id="setupSemester">
+            <option value="First Semester">First Semester</option>
+            <option value="Second Semester">Second Semester</option>
+          </select>
+        </div>
+        <div>
+          <label>Academic Year</label>
+          <select id="setupYear"></select>
+        </div>
+        <div>
+          <label>Department</label>
+          <select id="setupDept"><option value="">Select department…</option></select>
+        </div>
+        <button class="btn-load" onclick="loadSemesterSetup()">Load</button>
+      </div>
+
+      <div class="setup-grid">
+        <div>
+          <div class="setup-col-head">✅ Assigned to this department</div>
+          <div id="assignedList"><p style="color:var(--text3);font-size:0.82rem">Select filters and click Load.</p></div>
+        </div>
+        <div>
+          <div class="setup-col-head">➕ Available to assign</div>
+          <div id="unassignedList"><p style="color:var(--text3);font-size:0.82rem">Select filters and click Load.</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Enrollments -->
+    <div class="panel" id="panel-enrollments">
+      <div class="panel-title">Setup / <strong>Student Enrollments</strong></div>
+      <p class="panel-desc">View students enrolled in a specific course this semester. Admin can drop a student from a course if needed.</p>
+      <div class="toolbar">
+        <div>
+          <label>Semester</label>
+          <select id="enrollSemester">
+            <option value="First Semester">First Semester</option>
+            <option value="Second Semester">Second Semester</option>
+          </select>
+        </div>
+        <div>
+          <label>Academic Year</label>
+          <select id="enrollYear"></select>
+        </div>
+        <div>
+          <label>Course</label>
+          <select id="enrollCourse"><option value="">Select course…</option></select>
+        </div>
+        <button class="btn-load" onclick="loadCourseEnrollments()">Load</button>
+      </div>
+      <div id="enrollmentList"><div class="empty-state"><div class="empty-icon">📋</div>Select a course and click Load.</div></div>
+    </div>
+
+  </main>
+
+  <!-- Right panel -->
+  <aside class="right-panel">
+
+    <!-- Add Department -->
+    <div class="form-section">
+      <div class="section-head"><div class="section-icon">🏛</div><h3>Add Department</h3></div>
+      <div class="form-group"><label>Department Name</label><input type="text" id="deptName" placeholder="e.g. Computer Science"></div>
+      <div class="form-group"><label>Faculty</label><input type="text" id="deptFaculty" placeholder="e.g. Science & Technology"></div>
+      <button class="btn-submit" onclick="addDepartment()">+ Add Department</button>
+    </div>
+
+    <!-- Create Course -->
+    <div class="form-section">
+      <div class="section-head"><div class="section-icon">📚</div><h3>Create Course</h3></div>
+      <div class="form-group"><label>Course Code</label><input type="text" id="courseCode" placeholder="e.g. CS301"></div>
+      <div class="form-group"><label>Course Name</label><input type="text" id="courseName" placeholder="Software Engineering"></div>
+      <div class="form-group"><label>Lecturer</label><select id="lecturerSelect"><option value="">Loading…</option></select></div>
+      <div class="form-group"><label>Owner Department</label><select id="courseDeptSelect"><option value="">Select department…</option></select></div>
+      <div class="form-group">
+        <label>Level</label>
+        <select id="courseLevel">
+          <option value="100 Level">100 Level</option>
+          <option value="200 Level">200 Level</option>
+          <option value="300 Level">300 Level</option>
+          <option value="400 Level">400 Level</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Semester</label>
+        <select id="courseSemester">
+          <option value="First Semester">First Semester</option>
+          <option value="Second Semester">Second Semester</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Academic Year</label><input type="text" id="courseYear" placeholder="2024/2025"></div>
+      <button class="btn-submit" onclick="createCourse()">+ Create Course</button>
+      <p style="font-size:0.72rem;color:var(--text3);margin-top:8px;font-family:var(--mono)">// After creating, go to Semester Setup to assign departments.</p>
+    </div>
+
+    <!-- Reset Password -->
+    <div class="form-section">
+      <div class="section-head"><div class="section-icon">🔐</div><h3>Reset Password</h3></div>
+      <div class="form-group"><label>Email / Username</label><input type="text" id="resetEmail" placeholder="user@university.edu"></div>
+      <div class="form-group">
+        <label>Role</label>
+        <select id="resetRole">
+          <option value="student">Student</option>
+          <option value="lecturer">Lecturer</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group"><label>New Password</label><input type="password" id="resetNewPwd" placeholder="••••••••"></div>
+      <button class="btn-submit green" onclick="resetPassword()">↺ Reset Password</button>
+    </div>
+
+  </aside>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal">
+    <div class="modal-header"><span style="font-size:1.3rem">⚠️</span><h3>Confirm Delete</h3></div>
+    <p class="modal-sub" id="deleteModalText"></p>
+    <p class="modal-warn">// THIS ACTION CANNOT BE UNDONE</p>
+    <div class="modal-actions">
+      <button class="ma-confirm" onclick="confirmDelete()">Delete</button>
+      <button class="ma-cancel"  onclick="closeModal('deleteModal')">Cancel</button>
+    </div>
+    <div class="modal-msg" id="deleteMsg"></div>
+  </div>
+</div>
+
+<!-- Reassign Modal -->
+<div class="modal-overlay" id="reassignModal">
+  <div class="modal">
+    <div class="modal-header"><span style="font-size:1.3rem">🔄</span><h3>Reassign Course</h3></div>
+    <p class="modal-sub" id="reassignCourseName"></p>
+    <div class="form-group" style="margin-top:12px">
+      <label>New Lecturer</label>
+      <select id="reassignLecturerSelect"></select>
+    </div>
+    <div class="modal-actions">
+      <button class="ma-primary" onclick="confirmReassign()">Confirm</button>
+      <button class="ma-cancel"  onclick="closeModal('reassignModal')">Cancel</button>
+    </div>
+    <div class="modal-msg" id="reassignMsg"></div>
+  </div>
+</div>
+
+<!-- Admin Drop Enrollment Modal -->
+<div class="modal-overlay" id="adminDropModal">
+  <div class="modal">
+    <div class="modal-header"><span style="font-size:1.3rem">📋</span><h3>Remove Enrollment</h3></div>
+    <p class="modal-sub" id="adminDropText"></p>
+    <p class="modal-warn">// Attendance records will be kept</p>
+    <div class="modal-actions">
+      <button class="ma-confirm" onclick="confirmAdminDrop()">Remove</button>
+      <button class="ma-cancel"  onclick="closeModal('adminDropModal')">Cancel</button>
+    </div>
+    <div class="modal-msg" id="adminDropMsg"></div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = '/';
+document.getElementById('adminName').textContent = localStorage.getItem('fullName') || 'Admin';
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+let allLecturers   = [];
+let allDepartments = [];
+let pendingDelete  = null;
+let pendingReassign = null;
+let pendingAdminDrop = null;
+
+function authHdr() { return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }; }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function escAttr(str) { return String(str).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+// ── Years ──────────────────────────────────────────────────────
+(function() {
+  const year = new Date().getFullYear();
+  ['setupYear','enrollYear'].forEach(id => {
+    const sel = document.getElementById(id);
+    if (!sel) return;
+    for (let y = year; y >= year - 3; y--) {
+      const o = document.createElement('option');
+      o.value = `${y}/${y+1}`; o.textContent = `${y}/${y+1}`;
+      sel.appendChild(o);
+    }
+  });
+})();
+
+// ── Toast ──────────────────────────────────────────────────────
+function toast(msg, type = 'info', duration = 3500) {
+  const icons = { success:'✓', error:'✗', info:'ℹ', warn:'⚠' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-icon">${icons[type]}</span><span>${msg}</span><button class="toast-close" onclick="this.parentElement.remove()">✕</button>`;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => { el.style.animation = 'slideDown 0.3s ease forwards'; setTimeout(() => el.remove(), 300); }, duration);
+}
+
+// ── Panel switching ────────────────────────────────────────────
+function showPanel(name, btn) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  btn.classList.add('active');
+  if (name === 'students')    loadStudents();
+  if (name === 'lecturers')   loadLecturers();
+  if (name === 'courses')     loadCourses();
+  if (name === 'departments') loadDepartments();
+  if (name === 'enrollments') { loadDepartments(); populateEnrollCourses(); }
+}
+
+// ── Departments ────────────────────────────────────────────────
+async function loadDepartments() {
+  try {
+    const res  = await fetch('/api/departments', { headers: authHdr() });
+    allDepartments = await res.json();
+    document.getElementById('countDepts').textContent = allDepartments.length;
+
+    // Populate all department selects across the page
+    const opts = '<option value="">Select department…</option>' +
+      allDepartments.map(d => `<option value="${d.name}">${d.name}</option>`).join('');
+    ['courseDeptSelect','setupDept'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = opts;
+    });
+
+    // Render department table
+    const el = document.getElementById('deptList');
+    if (!el) return;
+    if (!allDepartments.length) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏛</div>No departments yet. Add one using the form.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr><th>#</th><th>Department</th><th>Faculty</th><th>Action</th></tr></thead>
+        <tbody>${allDepartments.map((d,i) => `<tr>
+          <td class="td-mono" style="font-size:0.75rem">${i+1}</td>
+          <td class="td-primary">${d.name}</td>
+          <td style="color:var(--text2)">${d.faculty}</td>
+          <td><button class="tbl-btn danger" onclick="openDeleteModal('department',${d.id},'${escAttr(d.name)}',loadDepartments)">🗑 Delete</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+  } catch { toast('Failed to load departments.', 'error'); }
+}
+
+async function addDepartment() {
+  const name    = document.getElementById('deptName').value.trim();
+  const faculty = document.getElementById('deptFaculty').value.trim();
+  if (!name || !faculty) { toast('Enter both department name and faculty.', 'warn'); return; }
+  try {
+    const res  = await fetch('/api/departments', { method:'POST', headers:authHdr(), body:JSON.stringify({name,faculty}) });
+    const data = await res.json();
+    if (res.ok) {
+      toast(`Department "${name}" added.`, 'success');
+      document.getElementById('deptName').value    = '';
+      document.getElementById('deptFaculty').value = '';
+      loadDepartments();
+    } else { toast(data.error || 'Failed.', 'error'); }
+  } catch { toast('Network error.', 'error'); }
+}
+
+// ── Students ───────────────────────────────────────────────────
+async function loadStudents() {
+  try {
+    const res  = await fetch('/api/students', { headers: authHdr() });
+    const data = await res.json();
+    document.getElementById('countStudents').textContent = data.length;
+    if (!data.length) { document.getElementById('studentList').innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div>No students registered yet.</div>'; return; }
+    document.getElementById('studentList').innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Student ID</th><th>Name</th><th>Level</th><th>Department</th><th>Registered</th><th>Action</th></tr></thead>
+        <tbody>${data.map(s => `<tr>
+          <td class="td-mono td-primary">${s.student_id}</td>
+          <td><div class="td-primary">${s.full_name}</div><div class="td-sub">${s.email}</div></td>
+          <td>${s.level}</td><td>${s.department}</td>
+          <td class="td-mono" style="font-size:0.75rem">${s.created_at?.slice(0,10)??'—'}</td>
+          <td><button class="tbl-btn danger" onclick="openDeleteModal('student',${s.id},'${escAttr(s.full_name)}',loadStudents)">🗑 Delete</button></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+  } catch { toast('Failed to load students.', 'error'); }
+}
+
+// ── Lecturers ──────────────────────────────────────────────────
+async function loadLecturers() {
+  try {
+    const res = await fetch('/api/lecturers', { headers: authHdr() });
+    allLecturers = await res.json();
+    document.getElementById('countLecturers').textContent = allLecturers.length;
+    if (!allLecturers.length) {
+      document.getElementById('lecturerList').innerHTML = '<div class="empty-state"><div class="empty-icon">👨‍🏫</div>No lecturers registered yet.</div>';
+    } else {
+      document.getElementById('lecturerList').innerHTML = `
+        <div class="table-wrap"><table>
+          <thead><tr><th>Staff ID</th><th>Name</th><th>Department</th><th>Registered</th><th>Action</th></tr></thead>
+          <tbody>${allLecturers.map(l => `<tr>
+            <td class="td-mono td-primary">${l.staff_id}</td>
+            <td><div class="td-primary">${l.full_name}</div><div class="td-sub">${l.email}</div></td>
+            <td>${l.department}</td>
+            <td class="td-mono" style="font-size:0.75rem">${l.created_at?.slice(0,10)??'—'}</td>
+            <td><button class="tbl-btn danger" onclick="openDeleteModal('lecturer',${l.id},'${escAttr(l.full_name)}',loadLecturers)">🗑 Delete</button></td>
+          </tr>`).join('')}</tbody>
+        </table></div>`;
+    }
+    document.getElementById('lecturerSelect').innerHTML =
+      '<option value="">Select lecturer</option>' +
+      allLecturers.map(l => `<option value="${l.id}">${l.full_name} (${l.staff_id})</option>`).join('');
+  } catch { toast('Failed to load lecturers.', 'error'); }
+}
+
+// ── Courses ────────────────────────────────────────────────────
+async function loadCourses() {
+  try {
+    const res  = await fetch('/api/courses', { headers: authHdr() });
+    const data = await res.json();
+    document.getElementById('countCourses').textContent = data.length;
+    if (!data.length) { document.getElementById('courseList').innerHTML = '<div class="empty-state"><div class="empty-icon">📚</div>No courses created yet.</div>'; return; }
+    document.getElementById('courseList').innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Code</th><th>Name</th><th>Lecturer</th><th>Level</th><th>Semester</th><th>Year</th><th>Actions</th></tr></thead>
+        <tbody>${data.map(c => `<tr>
+          <td class="td-mono td-primary">${c.code}</td>
+          <td class="td-primary">${c.name}</td>
+          <td><div>${c.lecturer}</div><div class="td-sub">${c.department}</div></td>
+          <td>${c.level}</td><td>${c.semester}</td>
+          <td class="td-mono" style="font-size:0.75rem">${c.academic_year}</td>
+          <td><div class="action-row">
+            <button class="tbl-btn warning" onclick="openReassignModal(${c.id},'${escAttr(c.code+' — '+c.name)}')">🔄 Reassign</button>
+            <button class="tbl-btn danger"  onclick="openDeleteModal('course',${c.id},'${escAttr(c.name)}',loadCourses)">🗑 Delete</button>
+          </div></td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+  } catch { toast('Failed to load courses.', 'error'); }
+}
+
+// ── Create Course ──────────────────────────────────────────────
+async function createCourse() {
+  const code          = document.getElementById('courseCode').value.trim();
+  const name          = document.getElementById('courseName').value.trim();
+  const lecturer_id   = parseInt(document.getElementById('lecturerSelect').value);
+  const department    = document.getElementById('courseDeptSelect').value;
+  const level         = document.getElementById('courseLevel').value;
+  const semester      = document.getElementById('courseSemester').value;
+  const academic_year = document.getElementById('courseYear').value.trim();
+  if (!code || !name || !lecturer_id || !department || !academic_year) {
+    toast('Fill in all required fields.', 'warn'); return;
+  }
+  try {
+    const res  = await fetch('/api/courses/create', {
+      method:'POST', headers:authHdr(),
+      body: JSON.stringify({code,name,lecturer_id,department,level,semester,academic_year})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast('Course created! Now go to Semester Setup to assign it to departments.', 'success');
+      ['courseCode','courseName','courseYear'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('lecturerSelect').value   = '';
+      document.getElementById('courseDeptSelect').value = '';
+      loadCourses();
+    } else { toast(data.error || 'Failed to create course.', 'error'); }
+  } catch { toast('Network error.', 'error'); }
+}
+
+// ── Reset Password ─────────────────────────────────────────────
+async function resetPassword() {
+  const email        = document.getElementById('resetEmail').value.trim();
+  const role         = document.getElementById('resetRole').value;
+  const new_password = document.getElementById('resetNewPwd').value;
+  if (!email || !new_password) { toast('Fill in all fields.', 'warn'); return; }
+  try {
+    const res  = await fetch('/api/auth/forgot-password', {
+      method:'POST', headers:authHdr(),
+      body: JSON.stringify({email, new_password, role})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      toast(data.message || 'Password reset.', 'success');
+      document.getElementById('resetEmail').value  = '';
+      document.getElementById('resetNewPwd').value = '';
+    } else { toast(data.error || 'Reset failed.', 'error'); }
+  } catch { toast('Network error.', 'error'); }
+}
+
+// ── Semester Setup ─────────────────────────────────────────────
+async function loadSemesterSetup() {
+  const semester = document.getElementById('setupSemester').value;
+  const year     = document.getElementById('setupYear').value;
+  const dept     = document.getElementById('setupDept').value;
+  if (!dept) { toast('Select a department first.', 'warn'); return; }
+
+  document.getElementById('assignedList').innerHTML   = '<p style="color:var(--text3);font-size:0.82rem">Loading…</p>';
+  document.getElementById('unassignedList').innerHTML = '<p style="color:var(--text3);font-size:0.82rem">Loading…</p>';
+
+  try {
+    const [aRes, uRes] = await Promise.all([
+      fetch(`/api/semester/setup?semester=${encodeURIComponent(semester)}&academic_year=${encodeURIComponent(year)}&department=${encodeURIComponent(dept)}`, { headers: authHdr() }),
+      fetch(`/api/semester/unassigned?semester=${encodeURIComponent(semester)}&academic_year=${encodeURIComponent(year)}&department=${encodeURIComponent(dept)}`, { headers: authHdr() }),
+    ]);
+    const assigned   = await aRes.json();
+    const unassigned = await uRes.json();
+
+    document.getElementById('assignedList').innerHTML = assigned.length
+      ? assigned.map(c => `
+          <div class="setup-item">
+            <div class="setup-item-info">
+              <div class="setup-code">${c.code}</div>
+              <div class="setup-name">${c.name}</div>
+              <div class="setup-meta">${c.level} · ${c.lecturer}</div>
+            </div>
+            <button class="btn-assign remove" onclick="removeDeptAssignment(${c.id},'${escAttr(c.code)}')">✕ Remove</button>
+          </div>`).join('')
+      : '<p style="color:var(--text3);font-size:0.82rem;padding:8px 0">No courses assigned to this department for this semester yet.</p>';
+
+    document.getElementById('unassignedList').innerHTML = unassigned.length
+      ? unassigned.map(c => `
+          <div class="setup-item">
+            <div class="setup-item-info">
+              <div class="setup-code">${c.code}</div>
+              <div class="setup-name">${c.name}</div>
+              <div class="setup-meta">${c.level} · ${c.lecturer}</div>
+            </div>
+            <button class="btn-assign add" onclick="addDeptAssignment(${c.id},'${escAttr(c.code)}')">+ Assign</button>
+          </div>`).join('')
+      : '<p style="color:var(--text3);font-size:0.82rem;padding:8px 0">All courses for this semester are already assigned to this department.</p>';
+
+  } catch { toast('Failed to load semester setup.', 'error'); }
+}
+
+async function addDeptAssignment(courseId, code) {
+  const semester = document.getElementById('setupSemester').value;
+  const year     = document.getElementById('setupYear').value;
+  const dept     = document.getElementById('setupDept').value;
+  try {
+    const res = await fetch('/api/semester/assign', {
+      method:'POST', headers:authHdr(),
+      body: JSON.stringify({ course_id: courseId, department: dept, semester, academic_year: year })
+    });
+    const data = await res.json();
+    if (res.ok) { toast(`${code} assigned to ${dept}.`, 'success'); loadSemesterSetup(); }
+    else        { toast(data.error || 'Failed.', 'error'); }
+  } catch { toast('Network error.', 'error'); }
+}
+
+async function removeDeptAssignment(courseId, code) {
+  const semester = document.getElementById('setupSemester').value;
+  const year     = document.getElementById('setupYear').value;
+  const dept     = document.getElementById('setupDept').value;
+  try {
+    const res = await fetch('/api/semester/remove', {
+      method:'DELETE', headers:authHdr(),
+      body: JSON.stringify({ course_id: courseId, department: dept, semester, academic_year: year })
+    });
+    const data = await res.json();
+    if (res.ok) { toast(`${code} removed from ${dept}.`, 'info'); loadSemesterSetup(); }
+    else        { toast(data.error || 'Failed.', 'error'); }
+  } catch { toast('Network error.', 'error'); }
+}
+
+// ── Enrollments ────────────────────────────────────────────────
+async function populateEnrollCourses() {
+  try {
+    const res     = await fetch('/api/courses', { headers: authHdr() });
+    const courses = await res.json();
+    document.getElementById('enrollCourse').innerHTML =
+      '<option value="">Select course…</option>' +
+      courses.map(c => `<option value="${c.id}">${c.code} — ${c.name} (${c.semester} ${c.academic_year})</option>`).join('');
+  } catch {}
+}
+
+async function loadCourseEnrollments() {
+  const courseId = document.getElementById('enrollCourse').value;
+  const semester = document.getElementById('enrollSemester').value;
+  const year     = document.getElementById('enrollYear').value;
+  const el       = document.getElementById('enrollmentList');
+  if (!courseId) { toast('Select a course first.', 'warn'); return; }
+  el.innerHTML = '<p style="color:var(--text3);font-size:0.82rem;padding:8px 0">Loading…</p>';
+  try {
+    const res      = await fetch(`/api/enrollments/course/${courseId}`, { headers: authHdr() });
+    const students = await res.json();
+    const filtered = students.filter(s => s.semester === semester && s.academic_year === year);
+    if (!filtered.length) {
+      el.innerHTML = '<div class="empty-state"><div class="empty-icon">📋</div>No students enrolled in this course for this semester.</div>';
+      return;
+    }
+    el.innerHTML = `
+      <div class="table-wrap"><table>
+        <thead><tr><th>Student ID</th><th>Name</th><th>Level</th><th>Department</th><th>Enrolled</th><th>Action</th></tr></thead>
+        <tbody>${filtered.map(s => `<tr>
+          <td class="td-mono td-primary">${s.student_id}</td>
+          <td class="td-primary">${s.full_name}</td>
+          <td>${s.level}</td><td>${s.department}</td>
+          <td class="td-mono" style="font-size:0.75rem">${s.enrolled_at?.slice(0,10)??'—'}</td>
+          <td>
+            <button class="tbl-btn danger"
+              onclick="openAdminDropModal(${s.id},'${escAttr(s.full_name)}',${courseId},'${semester}','${year}')">
+              Drop
+            </button>
+          </td>
+        </tr>`).join('')}</tbody>
+      </table></div>`;
+  } catch { toast('Failed to load enrollments.', 'error'); }
+}
+
+function openAdminDropModal(studentId, studentName, courseId, semester, year) {
+  pendingAdminDrop = { student_id: studentId, course_id: courseId, semester, academic_year: year };
+  document.getElementById('adminDropText').textContent = `Remove "${studentName}" from this course for ${semester} ${year}?`;
+  document.getElementById('adminDropMsg').textContent  = '';
+  document.getElementById('adminDropModal').classList.add('open');
+}
+
+async function confirmAdminDrop() {
+  if (!pendingAdminDrop) return;
+  try {
+    const res  = await fetch('/api/enrollments/admin-drop', {
+      method:'DELETE', headers:authHdr(), body:JSON.stringify(pendingAdminDrop)
+    });
+    const data = await res.json();
+    if (res.ok) {
+      closeModal('adminDropModal'); pendingAdminDrop = null;
+      toast('Enrollment removed. Attendance records kept.', 'success');
+      loadCourseEnrollments();
+    } else {
+      document.getElementById('adminDropMsg').textContent = '✗ ' + data.error;
+      toast(data.error, 'error');
+    }
+  } catch { toast('Network error.', 'error'); }
+}
+
+// ── Delete Modal ───────────────────────────────────────────────
+function openDeleteModal(type, id, label, reloadFn) {
+  pendingDelete = { type, id, reloadFn };
+  document.getElementById('deleteModalText').textContent = `Delete ${type}: "${label}"?`;
+  document.getElementById('deleteMsg').textContent = '';
+  document.getElementById('deleteModal').classList.add('open');
+}
+
+async function confirmDelete() {
+  if (!pendingDelete) return;
+  const { type, id, reloadFn } = pendingDelete;
+  const endpoints = {
+    student:    `/api/students/${id}`,
+    lecturer:   `/api/lecturers/${id}`,
+    course:     `/api/courses/${id}`,
+    department: `/api/departments/${id}`,
+  };
+  try {
+    const res  = await fetch(endpoints[type], { method:'DELETE', headers:authHdr() });
+    const data = await res.json();
+    if (res.ok) {
+      closeModal('deleteModal'); pendingDelete = null;
+      reloadFn();
+      if (type === 'lecturer') { loadLecturers(); loadCourses(); }
+      toast(`${type.charAt(0).toUpperCase()+type.slice(1)} deleted.`, 'success');
+    } else {
+      document.getElementById('deleteMsg').textContent = '✗ ' + data.error;
+      toast(data.error, 'error');
+    }
+  } catch { toast('Network error.', 'error'); }
+}
+
+// ── Reassign Modal ─────────────────────────────────────────────
+function openReassignModal(courseId, label) {
+  pendingReassign = { courseId };
+  document.getElementById('reassignCourseName').textContent = label;
+  document.getElementById('reassignMsg').textContent = '';
+  document.getElementById('reassignLecturerSelect').innerHTML =
+    '<option value="">Select new lecturer</option>' +
+    allLecturers.map(l => `<option value="${l.id}">${l.full_name} (${l.staff_id})</option>`).join('');
+  document.getElementById('reassignModal').classList.add('open');
+}
+
+async function confirmReassign() {
+  if (!pendingReassign) return;
+  const lecturer_id = parseInt(document.getElementById('reassignLecturerSelect').value);
+  if (!lecturer_id) { document.getElementById('reassignMsg').textContent = '⚠ Select a lecturer.'; return; }
+  try {
+    const res  = await fetch(`/api/courses/${pendingReassign.courseId}/reassign`, {
+      method:'PUT', headers:authHdr(), body:JSON.stringify({lecturer_id})
+    });
+    const data = await res.json();
+    if (res.ok) {
+      closeModal('reassignModal'); pendingReassign = null;
+      loadCourses(); toast('Course reassigned.', 'success');
+    } else {
+      document.getElementById('reassignMsg').textContent = '✗ ' + data.error;
+      toast(data.error, 'error');
+    }
+  } catch { toast('Network error.', 'error'); }
+}
+
+document.querySelectorAll('.modal-overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+});
+
+function logout() { localStorage.clear(); location.href = '/'; }
+
+// ── Init ───────────────────────────────────────────────────────
+loadStudents();
+loadLecturers();
+loadDepartments();
+</script>
+</body>
+</html>

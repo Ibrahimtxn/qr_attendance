@@ -101,6 +101,50 @@ struct ReassignCourseRequest {
     lecturer_id: i32,
 }
 
+#[derive(serde::Deserialize)]
+struct EnrollRequest {
+    student_id:    i32,
+    course_id:     i32,
+    semester:      String,
+    academic_year: String,
+}
+
+#[derive(serde::Deserialize)]
+struct DropCourseRequest {
+    student_id:    i32,
+    course_id:     i32,
+    semester:      String,
+    academic_year: String,
+}
+
+#[derive(serde::Deserialize)]
+struct CreateOfferingRequest {
+    course_id:     i32,
+    department:    String,
+    level:         String,
+    semester:      String,
+    academic_year: String,
+}
+
+#[derive(serde::Deserialize)]
+struct DeleteOfferingRequest {
+    offering_id: i32,
+}
+
+#[derive(serde::Deserialize)]
+struct AssignDeptRequest {
+    course_id:     i32,
+    department:    String,
+    semester:      String,
+    academic_year: String,
+}
+
+#[derive(serde::Deserialize)]
+struct SemesterQuery {
+    semester:      String,
+    academic_year: String,
+    department:    String,
+}
 // ─────────────────────────────────────────────────────────────
 // ROOM SIZE PRESETS
 // Calculated from base classroom 17.07m x 7.92m (135.2 m²).
@@ -176,10 +220,11 @@ fn haversine_distance(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 
 async fn create_pool() -> Pool {
     let mut config = Config::new();
-    config.host     = Some("localhost".to_string());
-    config.dbname   = Some("attendance_db".to_string());
-    config.user     = Some("postgres".to_string());
-    config.password = Some("postgres".to_string());
+    config.host     = Some(std::env::var("DB_HOST").unwrap_or_else(|_| "localhost".to_string()));
+    config.dbname   = Some(std::env::var("DB_NAME").unwrap_or_else(|_| "attendance_db".to_string()));
+    config.user     = Some(std::env::var("DB_USER").unwrap_or_else(|_| "postgres".to_string()));
+    config.password = Some(std::env::var("DB_PASSWORD").unwrap_or_else(|_| "postgres".to_string()));
+    config.port     = Some(std::env::var("DB_PORT").unwrap_or_else(|_| "5432".to_string()).parse().unwrap_or(5432));
     config.create_pool(Some(Runtime::Tokio1), NoTls).unwrap()
 }
 
@@ -663,22 +708,26 @@ async fn get_attendance_report(course_id: web::Path<i32>) -> impl Responder {
     let rows = client.query(
         "SELECT s.student_id, s.full_name, s.level,
                 COUNT(ar.id) AS attended,
-                (SELECT COUNT(*) FROM attendance_sessions WHERE course_id = $1) AS total_sessions,
+                (SELECT COUNT(*) FROM attendance_sessions
+                 WHERE course_id = $1) AS total_sessions,
                 MAX(ar.scanned_at) AS last_attendance
-         FROM students s
+         FROM enrollments e
+         JOIN students s ON e.student_id = s.id
          LEFT JOIN attendance_records ar ON ar.student_id = s.id
          LEFT JOIN attendance_sessions ses
                ON ar.session_id = ses.id AND ses.course_id = $1
-         GROUP BY s.id, s.student_id, s.full_name, s.level",
+         WHERE e.course_id = $1
+         GROUP BY s.id, s.student_id, s.full_name, s.level
+         ORDER BY s.student_id",
         &[&cid],
     ).await.unwrap();
 
     let report: Vec<_> = rows.iter().map(|row| json!({
-        "student_id":    row.get::<_, String>("student_id"),
-        "student_name":  row.get::<_, String>("full_name"),
-        "level":         row.get::<_, String>("level"),
-        "attended":      row.get::<_, i64>("attended"),
-        "total_sessions":row.get::<_, i64>("total_sessions"),
+        "student_id":     row.get::<_, String>("student_id"),
+        "student_name":   row.get::<_, String>("full_name"),
+        "level":          row.get::<_, String>("level"),
+        "attended":       row.get::<_, i64>("attended"),
+        "total_sessions": row.get::<_, i64>("total_sessions"),
         "last_attendance": row.get::<_, Option<i64>>("last_attendance").map(|ts| {
             DateTime::from_timestamp(ts, 0)
                 .unwrap()
@@ -734,6 +783,500 @@ async fn delete_attendance_records(req: web::Json<DeleteAttendanceRequest>) -> i
     }))
 }
 
+// Enroll student in a course
+async fn enroll_course(req: web::Json<EnrollRequest>) -> impl Responder {
+    let pool   = create_pool().await;
+    let client = pool.get().await.unwrap();
+
+    match client.execute(
+        "INSERT INTO enrollments (student_id, course_id, semester, academic_year)
+         VALUES ($1, $2, $3, $4)",
+        &[&req.student_id, &req.course_id, &req.semester, &req.academic_year],
+    ).await {
+        Ok(_) => HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Enrolled successfully"
+        })),
+        Err(_) => HttpResponse::BadRequest().json(json!({
+            "error": "Already enrolled in this course for this semester"
+        })),
+    }
+}
+
+// Drop a course (keeps attendance records)
+async fn drop_course(req: web::Json<DropCourseRequest>) -> impl Responder {
+    let pool    = create_pool().await;
+    let client  = pool.get().await.unwrap();
+
+    let deleted = client.execute(
+        "DELETE FROM enrollments
+         WHERE student_id = $1 AND course_id = $2
+         AND semester = $3 AND academic_year = $4",
+        &[&req.student_id, &req.course_id, &req.semester, &req.academic_year],
+    ).await.unwrap();
+
+    if deleted > 0 {
+        HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Course dropped. Attendance records are preserved."
+        }))
+    } else {
+        HttpResponse::NotFound().json(json!({
+            "error": "Enrollment not found"
+        }))
+    }
+}
+
+// Get student's enrolled courses for a semester
+async fn get_my_enrollments(
+    student_id: web::Path<i32>,
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> impl Responder {
+    let pool      = create_pool().await;
+    let client    = pool.get().await.unwrap();
+    let sid       = student_id.into_inner();
+    let semester  = query.get("semester").cloned().unwrap_or_default();
+    let acad_year = query.get("academic_year").cloned().unwrap_or_default();
+
+    let rows = client.query(
+        "SELECT c.id, c.code, c.name, c.department, c.level,
+                c.semester, c.academic_year, l.full_name AS lecturer_name,
+                e.enrolled_at::text
+         FROM enrollments e
+         JOIN courses  c ON e.course_id  = c.id
+         JOIN lecturers l ON c.lecturer_id = l.id
+         WHERE e.student_id    = $1
+           AND e.semester      = $2
+           AND e.academic_year = $3
+         ORDER BY c.code",
+        &[&sid, &semester, &acad_year],
+    ).await.unwrap();
+
+    let courses: Vec<_> = rows.iter().map(|row| json!({
+        "id":            row.get::<_, i32>("id"),
+        "code":          row.get::<_, String>("code"),
+        "name":          row.get::<_, String>("name"),
+        "department":    row.get::<_, String>("department"),
+        "level":         row.get::<_, String>("level"),
+        "semester":      row.get::<_, String>("semester"),
+        "academic_year": row.get::<_, String>("academic_year"),
+        "lecturer":      row.get::<_, String>("lecturer_name"),
+        "enrolled_at":   row.get::<_, String>("enrolled_at")
+    })).collect();
+
+    HttpResponse::Ok().json(courses)
+}
+
+// Get available courses for a student to enroll in
+// Filtered by department + all levels (supports carryover)
+// Excludes courses already enrolled in for that semester
+/*async fn get_available_courses(
+    student_id: web::Path<i32>,
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> impl Responder {
+    let pool      = create_pool().await;
+    let client    = pool.get().await.unwrap();
+    let sid       = student_id.into_inner();
+    let semester  = query.get("semester").cloned().unwrap_or_default();
+    let acad_year = query.get("academic_year").cloned().unwrap_or_default();
+
+    // Get student's department
+    let student = client.query_one(
+        "SELECT department FROM students WHERE id = $1",
+        &[&sid],
+    ).await;
+
+    let department = match student {
+        Ok(row) => row.get::<_, String>("department"),
+        Err(_)  => return HttpResponse::NotFound()
+            .json(json!({"error": "Student not found"})),
+    };
+
+    // Only show courses where admin has assigned student's department
+    // for this semester — excludes courses not set up for their dept
+    let rows = client.query(
+        "SELECT c.id, c.code, c.name, c.department AS owner_dept,
+                c.level, c.semester, c.academic_year,
+                l.full_name AS lecturer_name
+         FROM course_departments cd
+         JOIN courses   c ON cd.course_id   = c.id
+         JOIN lecturers l ON c.lecturer_id  = l.id
+         WHERE cd.department   = $1
+           AND cd.semester     = $2
+           AND cd.academic_year = $3
+           AND c.id NOT IN (
+               SELECT course_id FROM enrollments
+               WHERE student_id    = $4
+                 AND semester      = $2
+                 AND academic_year = $3
+           )
+         ORDER BY c.level, c.code",
+        &[&department, &semester, &acad_year, &sid],
+    ).await.unwrap();
+
+    let courses: Vec<_> = rows.iter().map(|row| json!({
+        "id":            row.get::<_, i32>("id"),
+        "code":          row.get::<_, String>("code"),
+        "name":          row.get::<_, String>("name"),
+        "department":    row.get::<_, String>("owner_dept"),
+        "level":         row.get::<_, String>("level"),
+        "semester":      row.get::<_, String>("semester"),
+        "academic_year": row.get::<_, String>("academic_year"),
+        "lecturer":      row.get::<_, String>("lecturer_name")
+    })).collect();
+
+    HttpResponse::Ok().json(courses)
+}*/
+
+// Get available courses for a student to enroll in
+// Filtered by department + all levels (supports carryover)
+// Excludes courses already enrolled in for that semester
+async fn get_available_courses(
+    student_id: web::Path<i32>,
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> impl Responder {
+    let pool      = create_pool().await;
+    let client    = pool.get().await.unwrap();
+    let sid       = student_id.into_inner();
+    let semester  = query.get("semester").cloned().unwrap_or_default();
+    let acad_year = query.get("academic_year").cloned().unwrap_or_default();
+
+    // Get student's department and level
+    let student = client.query_one(
+        "SELECT department, level FROM students WHERE id = $1",
+        &[&sid],
+    ).await;
+
+    let (department, student_level) = match student {
+        Ok(row) => {
+            let dept: String = row.get("department");
+            let level: String = row.get("level");
+            (dept, level)
+        },
+        Err(_)  => return HttpResponse::NotFound()
+            .json(json!({"error": "Student not found"})),
+    };
+
+    // Show all courses assigned to student's department for this semester
+    // Include all levels (for carryover) but filter out already enrolled
+    let rows = client.query(
+        "SELECT c.id, c.code, c.name, c.department AS owner_dept,
+                c.level, c.semester, c.academic_year,
+                l.full_name AS lecturer_name
+         FROM course_departments cd
+         JOIN courses   c ON cd.course_id   = c.id
+         JOIN lecturers l ON c.lecturer_id  = l.id
+         WHERE cd.department   = $1
+           AND cd.semester     = $2
+           AND cd.academic_year = $3
+           AND c.id NOT IN (
+               SELECT course_id FROM enrollments
+               WHERE student_id    = $4
+                 AND semester      = $2
+                 AND academic_year = $3
+           )
+         ORDER BY c.level, c.code",
+        &[&department, &semester, &acad_year, &sid],
+    ).await.unwrap();
+
+    let courses: Vec<_> = rows.iter().map(|row| json!({
+        "id":            row.get::<_, i32>("id"),
+        "code":          row.get::<_, String>("code"),
+        "name":          row.get::<_, String>("name"),
+        "department":    row.get::<_, String>("owner_dept"),
+        "level":         row.get::<_, String>("level"),
+        "semester":      row.get::<_, String>("semester"),
+        "academic_year": row.get::<_, String>("academic_year"),
+        "lecturer":      row.get::<_, String>("lecturer_name")
+    })).collect();
+
+    HttpResponse::Ok().json(courses)
+}
+
+// Get enrolled students for a course (used by lecturer dashboard)
+// Only shows students enrolled — not the whole student body
+async fn get_course_enrollments(course_id: web::Path<i32>) -> impl Responder {
+    let pool   = create_pool().await;
+    let client = pool.get().await.unwrap();
+    let cid    = course_id.into_inner();
+
+    let rows = client.query(
+        "SELECT s.id, s.student_id, s.full_name, s.level, s.department,
+                e.semester, e.academic_year, e.enrolled_at::text
+         FROM enrollments e
+         JOIN students s ON e.student_id = s.id
+         WHERE e.course_id = $1
+         ORDER BY s.student_id",
+        &[&cid],
+    ).await.unwrap();
+
+    let students: Vec<_> = rows.iter().map(|row| json!({
+        "id":            row.get::<_, i32>("id"),
+        "student_id":    row.get::<_, String>("student_id"),
+        "full_name":     row.get::<_, String>("full_name"),
+        "level":         row.get::<_, String>("level"),
+        "department":    row.get::<_, String>("department"),
+        "semester":      row.get::<_, String>("semester"),
+        "academic_year": row.get::<_, String>("academic_year"),
+        "enrolled_at":   row.get::<_, String>("enrolled_at")
+    })).collect();
+
+    HttpResponse::Ok().json(students)
+}
+
+// Admin drop — same as student drop, just called by admin
+async fn admin_drop_enrollment(req: web::Json<DropCourseRequest>) -> impl Responder {
+    let pool    = create_pool().await;
+    let client  = pool.get().await.unwrap();
+
+    let deleted = client.execute(
+        "DELETE FROM enrollments
+         WHERE student_id = $1 AND course_id = $2
+         AND semester = $3 AND academic_year = $4",
+        &[&req.student_id, &req.course_id, &req.semester, &req.academic_year],
+    ).await.unwrap();
+
+    if deleted > 0 {
+        HttpResponse::Ok().json(json!({"success": true, "message": "Enrollment removed by admin"}))
+    } else {
+        HttpResponse::NotFound().json(json!({"error": "Enrollment not found"}))
+    }
+}
+// Admin creates a course offering for a department/semester
+async fn create_offering(req: web::Json<CreateOfferingRequest>) -> impl Responder {
+    let pool   = create_pool().await;
+    let client = pool.get().await.unwrap();
+
+    match client.execute(
+        "INSERT INTO course_offerings
+         (course_id, department, level, semester, academic_year)
+         VALUES ($1, $2, $3, $4, $5)",
+        &[&req.course_id, &req.department, &req.level, &req.semester, &req.academic_year],
+    ).await {
+        Ok(_) => HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Course offering created"
+        })),
+        Err(_) => HttpResponse::BadRequest().json(json!({
+            "error": "This course is already offered to this department for this semester"
+        })),
+    }
+}
+
+// Admin deletes a course offering
+async fn delete_offering(id: web::Path<i32>) -> impl Responder {
+    let pool    = create_pool().await;
+    let client  = pool.get().await.unwrap();
+
+    let deleted = client.execute(
+        "DELETE FROM course_offerings WHERE id = $1",
+        &[&id.into_inner()],
+    ).await.unwrap();
+
+    if deleted > 0 {
+        HttpResponse::Ok().json(json!({"success": true, "message": "Offering removed"}))
+    } else {
+        HttpResponse::NotFound().json(json!({"error": "Offering not found"}))
+    }
+}
+
+// Get all offerings — admin view filtered by semester/year
+async fn get_offerings(
+    query: web::Query<std::collections::HashMap<String, String>>,
+) -> impl Responder {
+    let pool      = create_pool().await;
+    let client    = pool.get().await.unwrap();
+    let semester  = query.get("semester").cloned().unwrap_or_default();
+    let acad_year = query.get("academic_year").cloned().unwrap_or_default();
+
+    let rows = client.query(
+        "SELECT co.id, c.code, c.name, co.department, co.level,
+                co.semester, co.academic_year, l.full_name AS lecturer
+         FROM course_offerings co
+         JOIN courses   c ON co.course_id    = c.id
+         JOIN lecturers l ON c.lecturer_id   = l.id
+         WHERE co.semester      = $1
+           AND co.academic_year = $2
+         ORDER BY co.department, co.level, c.code",
+        &[&semester, &acad_year],
+    ).await.unwrap();
+
+    let offerings: Vec<_> = rows.iter().map(|row| json!({
+        "id":            row.get::<_, i32>("id"),
+        "code":          row.get::<_, String>("code"),
+        "name":          row.get::<_, String>("name"),
+        "department":    row.get::<_, String>("department"),
+        "level":         row.get::<_, String>("level"),
+        "semester":      row.get::<_, String>("semester"),
+        "academic_year": row.get::<_, String>("academic_year"),
+        "lecturer":      row.get::<_, String>("lecturer")
+    })).collect();
+
+    HttpResponse::Ok().json(offerings)
+}
+
+// Assign a department to a course for a semester
+async fn assign_course_department(
+    req: web::Json<AssignDeptRequest>
+) -> impl Responder {
+    let pool   = create_pool().await;
+    let client = pool.get().await.unwrap();
+
+    match client.execute(
+        "INSERT INTO course_departments (course_id, department, semester, academic_year)
+         VALUES ($1, $2, $3, $4)",
+        &[&req.course_id, &req.department, &req.semester, &req.academic_year],
+    ).await {
+        Ok(_) => HttpResponse::Ok().json(json!({
+            "success": true,
+            "message": "Department assigned to course"
+        })),
+        Err(_) => HttpResponse::BadRequest().json(json!({
+            "error": "Already assigned"
+        })),
+    }
+}
+
+// Remove a department from a course for a semester
+async fn remove_course_department(
+    req: web::Json<AssignDeptRequest>
+) -> impl Responder {
+    let pool    = create_pool().await;
+    let client  = pool.get().await.unwrap();
+
+    let deleted = client.execute(
+        "DELETE FROM course_departments
+         WHERE course_id = $1 AND department = $2
+           AND semester = $3 AND academic_year = $4",
+        &[&req.course_id, &req.department, &req.semester, &req.academic_year],
+    ).await.unwrap();
+
+    if deleted > 0 {
+        HttpResponse::Ok().json(json!({"success": true}))
+    } else {
+        HttpResponse::NotFound().json(json!({"error": "Assignment not found"}))
+    }
+}
+
+// Get semester setup — all courses assigned to a dept this semester
+async fn get_semester_setup(
+    query: web::Query<SemesterQuery>
+) -> impl Responder {
+    let pool   = create_pool().await;
+    let client = pool.get().await.unwrap();
+
+    let rows = client.query(
+        "SELECT c.id, c.code, c.name, c.level,
+                l.full_name AS lecturer_name,
+                ARRAY_AGG(cd.department ORDER BY cd.department) AS departments
+         FROM course_departments cd
+         JOIN courses   c ON cd.course_id  = c.id
+         JOIN lecturers l ON c.lecturer_id = l.id
+         WHERE cd.semester      = $1
+           AND cd.academic_year = $2
+           AND cd.department    = $3
+         GROUP BY c.id, c.code, c.name, c.level, l.full_name
+         ORDER BY c.level, c.code",
+        &[&query.semester, &query.academic_year, &query.department],
+    ).await.unwrap();
+
+    let setup: Vec<_> = rows.iter().map(|row| json!({
+        "id":          row.get::<_, i32>("id"),
+        "code":        row.get::<_, String>("code"),
+        "name":        row.get::<_, String>("name"),
+        "level":       row.get::<_, String>("level"),
+        "lecturer":    row.get::<_, String>("lecturer_name"),
+        "departments": row.get::<_, Vec<String>>("departments")
+    })).collect();
+
+    HttpResponse::Ok().json(setup)
+}
+
+// Get all courses NOT yet assigned to a dept this semester (for the add list)
+async fn get_unassigned_courses(
+    query: web::Query<SemesterQuery>
+) -> impl Responder {
+    let pool   = create_pool().await;
+    let client = pool.get().await.unwrap();
+
+    let rows = client.query(
+        "SELECT c.id, c.code, c.name, c.level, l.full_name AS lecturer_name
+         FROM courses c
+         JOIN lecturers l ON c.lecturer_id = l.id
+         WHERE c.semester      = $1
+           AND c.academic_year = $2
+           AND c.id NOT IN (
+               SELECT course_id FROM course_departments
+               WHERE department   = $3
+                 AND semester     = $1
+                 AND academic_year = $2
+           )
+         ORDER BY c.level, c.code",
+        &[&query.semester, &query.academic_year, &query.department],
+    ).await.unwrap();
+
+    let courses: Vec<_> = rows.iter().map(|row| json!({
+        "id":      row.get::<_, i32>("id"),
+        "code":    row.get::<_, String>("code"),
+        "name":    row.get::<_, String>("name"),
+        "level":   row.get::<_, String>("level"),
+        "lecturer":row.get::<_, String>("lecturer_name")
+    })).collect();
+
+    HttpResponse::Ok().json(courses)
+}
+
+// Get all departments
+async fn get_all_departments() -> impl Responder {
+    let pool   = create_pool().await;
+    let client = pool.get().await.unwrap();
+    let rows   = client.query(
+        "SELECT id, name, faculty FROM departments ORDER BY faculty, name",
+        &[],
+    ).await.unwrap();
+
+    let depts: Vec<_> = rows.iter().map(|row| json!({
+        "id":      row.get::<_, i32>("id"),
+        "name":    row.get::<_, String>("name"),
+        "faculty": row.get::<_, String>("faculty")
+    })).collect();
+    HttpResponse::Ok().json(depts)
+}
+
+#[derive(serde::Deserialize)]
+struct AddDepartmentRequest {
+    name:    String,
+    faculty: String,
+}
+
+// Add a new department
+async fn add_department(req: web::Json<AddDepartmentRequest>) -> impl Responder {
+    let pool   = create_pool().await;
+    let client = pool.get().await.unwrap();
+    match client.execute(
+        "INSERT INTO departments (name, faculty) VALUES ($1, $2)",
+        &[&req.name, &req.faculty],
+    ).await {
+        Ok(_)  => HttpResponse::Ok().json(json!({"success": true, "message": "Department added"})),
+        Err(_) => HttpResponse::BadRequest().json(json!({"error": "Department already exists"})),
+    }
+}
+
+// Delete a department
+async fn delete_department(id: web::Path<i32>) -> impl Responder {
+    let pool    = create_pool().await;
+    let client  = pool.get().await.unwrap();
+    let deleted = client.execute(
+        "DELETE FROM departments WHERE id = $1",
+        &[&id.into_inner()],
+    ).await.unwrap();
+    if deleted > 0 {
+        HttpResponse::Ok().json(json!({"success": true}))
+    } else {
+        HttpResponse::NotFound().json(json!({"error": "Department not found"}))
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // MAIN
 // ─────────────────────────────────────────────────────────────
@@ -743,7 +1286,9 @@ async fn main() -> std::io::Result<()> {
     dotenv().ok();
     env_logger::init();
 
-    println!("🚀 Server running at http://localhost:8080");
+    let port = std::env::var("PORT").unwrap_or_else(|_| "8080".to_string());
+    let bind_addr = format!("0.0.0.0:{}", port);
+    println!("🚀 Server running at http://{}", bind_addr);
     println!(
         "📐 Geofence radii — small: {}m · standard: {}m · large: {}m",
         RADIUS_SMALL, RADIUS_STANDARD, RADIUS_LARGE
@@ -786,11 +1331,31 @@ async fn main() -> std::io::Result<()> {
             .route("/api/reports/{course_id}",     web::get().to(get_attendance_report))
             .route("/api/attendance/delete",       web::post().to(delete_attendance_records))
 
+            // Enrollments
+            .route("/api/enrollments/enroll",              web::post().to(enroll_course))
+            .route("/api/enrollments/drop",                web::delete().to(drop_course))
+            .route("/api/enrollments/my/{student_id}",     web::get().to(get_my_enrollments))
+            .route("/api/enrollments/course/{course_id}",  web::get().to(get_course_enrollments))
+            .route("/api/enrollments/admin-drop",          web::delete().to(admin_drop_enrollment))
+            .route("/api/courses/available/{student_id}",  web::get().to(get_available_courses))
+            // ── Offerings ───────────────────────────────────────
+            .route("/api/offerings",              web::get().to(get_offerings))
+            .route("/api/offerings/create",       web::post().to(create_offering))
+            .route("/api/offerings/{id}",         web::delete().to(delete_offering))
+            // ── Semester setup ─────────────────────────────────────
+            .route("/api/semester/setup",           web::get().to(get_semester_setup))
+            .route("/api/semester/unassigned",      web::get().to(get_unassigned_courses))
+            .route("/api/semester/assign",          web::post().to(assign_course_department))
+            .route("/api/semester/remove",          web::delete().to(remove_course_department))
+            
+            .route("/api/departments",      web::get().to(get_all_departments))
+            .route("/api/departments",      web::post().to(add_department))
+            .route("/api/departments/{id}", web::delete().to(delete_department))
             // ── Static files (frontend) ────────────────────────
             // Serves everything in ./frontend — must be last
             .service(Files::new("/", "../frontend").index_file("index.html"))
     })
-    .bind("0.0.0.0:8080")?
+    .bind(&bind_addr)?
     .run()
     .await
 }
