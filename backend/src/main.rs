@@ -1353,7 +1353,7 @@ async fn main() -> std::io::Result<()> {
             .route("/api/departments/{id}", web::delete().to(delete_department))
             // ── Static files (frontend) ────────────────────────
             // Serves everything in ./frontend — must be last
-            .service(Files::new("/", "../frontend").index_file("index.html"))
+            .service(Files::new("/", "./frontend").index_file("index.html"))
     })
     .bind(&bind_addr)?
     .run()

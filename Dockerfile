@@ -36,4 +36,5 @@ COPY --from=builder /app/target/release/backend ./backend
 COPY frontend ./frontend
 
 # Start from /app so ./frontend resolves to /app/frontend
-CMD ["/app/backend"]
+WORKDIR /app
+CMD ["./backend"]
